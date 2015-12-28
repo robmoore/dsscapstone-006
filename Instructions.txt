@@ -1,0 +1,95 @@
+
+Task 1
+
+Tasks to accomplish
+
+1. Tokenization - identifying appropriate tokens such as words, punctuation, and numbers. Writing a function that takes a file as input and returns a tokenized version of it.
+2. Profanity filtering - removing profanity and other words you do not want to predict.
+
+-=--=-=-=-
+
+Task 2
+
+Tasks to accomplish
+
+1. Exploratory analysis - perform a thorough exploratory analysis of the data, understanding the distribution of words and relationship between the words in the corpora. 
+2. Understand frequencies of words and word pairs - build figures and tables to understand variation in the frequencies of words and word pairs in the data.
+
+Questions to consider
+
+1. Some words are more frequent than others - what are the distributions of word frequencies? 
+2. What are the frequencies of 2-grams and 3-grams in the dataset? 
+3. How many unique words do you need in a frequency sorted dictionary to cover 50% of all word instances in the language? 90%? 
+4. How do you evaluate how many of the words come from foreign languages? 
+5. Can you think of a way to increase the coverage -- identifying words that may not be in the corpora or using a smaller number of words in the dictionary to cover the same number of phrases?
+
+-=-=-=-=
+
+Task 3
+
+The goal here is to build your first simple model for the relationship between words. This is the first step in building a predictive text mining application. You will explore simple models and discover more complicated modeling techniques.
+
+Tasks to accomplish
+
+1. Build basic n-gram model - using the exploratory analysis you performed, build a basic n-gram model for predicting the next word based on the previous 1, 2, or 3 words.
+2. Build a model to handle unseen n-grams - in some cases people will want to type a combination of words that does not appear in the corpora. Build a model to handle cases where a particular n-gram isn't observed.
+
+Questions to consider
+
+1. How can you efficiently store an n-gram model (think Markov Chains)?
+2. How can you use the knowledge about word frequencies to make your model smaller and more efficient?
+3. How many parameters do you need (i.e. how big is n in your n-gram model)?
+4. Can you think of simple ways to "smooth" the probabilities (think about giving all n-grams a non-zero probability even if they aren't observed in the data) ?
+5. How do you evaluate whether your model is any good?
+6. How can you use backoff models to estimate the probability of unobserved n-grams?
+
+=-=-=-=
+
+Task 4
+
+The goal of this exercise is to build and evaluate your first predictive model. You will use the n-gram and backoff models you built in previous tasks to build and evaluate your predictive model. The goal is to make the model efficient and accurate. 
+
+Tasks to accomplish
+
+1. Build a predictive model based on the previous data modeling steps - you may combine the models in any way you think is appropriate. 
+2. Evaluate the model for efficiency and accuracy - use timing software to evaluate the computational complexity of your model. Evaluate the model accuracy using different metrics like perplexity, accuracy at the first word, second word, and third word.
+
+Questions to consider
+
+1. How does the model perform for different choices of the parameters and size of the model? 
+2. How much does the model slow down for the performance you gain?
+3. Does perplexity correlate with the other measures of accuracy?
+4. Can you reduce the size of the model (number of parameters) without reducing performance? 
+
+-=-=-=
+
+Milestone Report
+
+The motivation for this project is to: 
+
+1. Demonstrate that you've downloaded the data and have successfully loaded it in.
+2. Create a basic report of summary statistics about the data sets.
+3. Report any interesting findings that you amassed so far.
+4. Get feedback on your plans for creating a prediction algorithm and Shiny app.
+
+Grading Rubric:
+
+1. Does the link lead to an HTML page describing the exploratory analysis of the training data set?
+2. Has the data scientist done basic summaries of the three files? Word counts, line counts and basic data tables?
+3. Has the data scientist made basic plots, such as histograms to illustrate features of the data?
+4. Was the report written in a brief, concise style, in a way that a non-data scientist manager could appreciate?
+
+
+http://stackoverflow.com/questions/7805061/how-to-produce-a-log-log-rank-frequency-plot
+https://cran.r-project.org/web/packages/filehash/index.html
+https://rstudio-pubs-static.s3.amazonaws.com/31867_8236987cf0a8444e962ccd2aec46d9c3.html Good stats info & usage of tm
+http://www.exegetic.biz/blog/2013/09/text-mining-the-complete-works-of-william-shakespeare/ more good tm info
+http://stackoverflow.com/questions/16823739/r-tm-reloading-a-pcorpus-backend-filehash-database-as-corpus-e-g-in-restart pcorpus & filehash using sqlite
+
+https://cran.r-project.org/web/packages/quanteda/vignettes/LitVignette.html
+
+
+The guy in front of me just bought a pound of bacon, a bouquet, and a case of
+You're the reason why I smile everyday. Can you follow me please? It would mean the
+Hey sunshine, can you follow me and make me the
+Very early observations on the Bills game: Offense still struggling but the
