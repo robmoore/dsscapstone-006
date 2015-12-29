@@ -1,0 +1,221 @@
+---
+title: "Data Science Capstone Milestone Report"
+author: "Rob Moore"
+date: "December 28, 2015"
+output: html_document
+---
+
+# Data Provenance
+
+The data used for this project are from the [HC Corpora project](http://www.corpora.heliohost.org/)
+which is run presumably by its namesake Hans Christensen. The goal of the HC Corpora is to collect
+examples of languages as used in their current context by crawling the web and collecting text from 
+publicly available sources, namely blogs, Twitter feeds, and newspaper stories. The collection currently
+has corpora for over 60 languages or variants (such as US or UK English).
+
+The HC Corpora project maintains only about 50% of the original source data by design and although 
+the crawler attempts to capture material solely in the given language, HC readily acknowledge that
+other languages are typically part of the contents of a given language's corpus. This can occur
+accidantally, as in the case where the crawler misidentifies the language, or purposefully in a context
+where another language is 'borrowed' as part of ordinary expression.
+
+We are tasked with using the US Engish corpora as a basis of creating a model to suggest the next
+word in a sentence given the words that have preceeded in order to aid an user, for example, in 
+writing text within an environment such as a mobile phone where typing can be tedious and error-prone.
+
+The US Corpus is made up of three files which each contain a distinct source of data: blogs, Twitter,
+or newspaper stories. The HC Corpora project provides the [following approximate statistics](http://www.corpora.heliohost.org/statistics.html#EnglishUSCorpus)
+for the US English corpus:
+
+|	          | Words	      | Characters  | Letters	    | Lines	    | Mean Word Length | Mean Words/Line |
+|-----------|-------------|-------------|-------------|-----------|------------------|-----------------|
+| Blogs	    | 37,242,000  | 206,824,000 | 163,815,000 |	899,000	  | 4.4	             | 41.41           |
+| Newspapers| 34,275,000	| 203,223,000 |	162,803,000	| 1,010,000	| 4.75	           | 33.93           |
+| Twitter	  | 29,876,000	| 162,122,000 |	125,998,000	| 2,360,000	| 4.22	           | 12.66           |
+| Total	    | 101,393,000	| 572,170,000 |	452,617,000	| 4,269,000	| 4.46	           | 23.75           |
+
+The three formats differ in the accepted or enforced norms of their respective mediums. For example, Twitter's 140 character limit forces the use of short messages with a mean of 12.66 words per line. Likewise, newspapers
+typically are restricted in story length due to space and concerns such as user attention and screen real
+estate that can be used for advertisements. As a result, the average length of newspaper articles is well
+above that of Twitter's messages but nearly a quarter less than blog entries where writers are given full
+reign in terms of expressing themselves and where the expression "TL;DR" may have originated.
+
+# Data Pre-processing
+
+```{r chunk1, echo = FALSE, cache = TRUE}
+# For reproducibility's sake
+set.seed(19394399)
+
+download.maybe <- function(url, refetch=FALSE, path=".") {
+  dest <- file.path(path, basename(url))
+  if (refetch || !file.exists(dest))
+    download.file(url, dest)
+  dest
+}
+download.maybe("http://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip")
+
+# unzip file if not previously done
+if (!file.exists("final")) {
+  unzip("Coursera-SwiftKey.zip")
+}
+
+library(LaF) # for sample_lines
+library(quanteda)
+library(parallel)
+
+nLinesRatio <- .6
+nTwitterLines <- 2360148 # can use determine_nlines("final/en_US/en_US.twitter.txt")
+nBlogLines <- 899288 # can use determine_nlines("final/en_US/en_US.blogs.txt")
+nNewsLines <- 1010242 # can use determine_nlines("final/en_US/en_US.news.txt")
+
+tweets <- sample_lines("final/en_US/en_US.twitter.txt", nTwitterLines * nLinesRatio, nTwitterLines)
+blogs <- sample_lines("final/en_US/en_US.blogs.txt", nBlogLines * nLinesRatio, nBlogLines)
+news <- sample_lines("final/en_US/en_US.news.txt", nNewsLines * nLinesRatio, nNewsLines)
+
+all <- c(tweets, blogs, news) # treat as single corpus
+all <- tokenize(all, what = "sentence", simplify = TRUE)
+nsentences <- length(all)
+
+# replace profanity with UNK tag
+excluded <- scan("https://raw.githubusercontent.com/shutterstock/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words/master/en", 
+                 sep = "\n", 
+                 what = character())
+# Filter out phrases, just use words
+excluded <- excluded[grepl("^\\w+$", excluded, perl = TRUE)]
+# Only replace whole words
+excluded <- paste0(sapply(excluded, function(x) paste0('\\b', x, '\\b')), collapse = "|")
+# Convert to lower case to ease comparisons
+allMod <- toLower(all)
+
+# Initiate cluster for parallel operations
+cl <- makeCluster(detectCores() / 2, type="FORK")
+# Remove words to be excluded using _UNK_ placeholder
+ptm <- proc.time()
+allMod <- parSapply(cl, allMod, function(x) gsub(excluded, "_UNK_", x, perl = TRUE))
+proc.time() - ptm
+# Stop cluster as we're done with it
+stopCluster(cl)
+
+# Create document-feature matrices (DFMs) for each ngram type (2-5)
+unigramsDfm <- dfm(allMod, removePunct = TRUE, toLower = FALSE, removeNumbers = TRUE, removeTwitter = TRUE)
+unigramsDfm <- trim(unigramsDfm, minCount = 2)
+
+# add sentence begin/end markers
+bigramsAllMod <- unname(sapply(allMod, function(x) paste("_S_", x, "_S_")))
+bigramsDfm <- dfm(bigramsAllMod, ngrams = 2, removePunct = TRUE, toLower = FALSE, removeNumbers = TRUE, removeTwitter = TRUE)
+bigramsDfm <- trim(bigramsDfm, minCount = 2)
+
+trigramsAllMod <- unname(sapply(bigramsAllMod, function(x) paste("_S_", x, "_S_")))
+trigramsDfm <- dfm(trigramsAllMod, ngrams = 3, removePunct = TRUE, toLower = FALSE, removeNumbers = TRUE, removeTwitter = TRUE)
+trigramsDfm <- trim(trigramsDfm, minCount = 2)
+
+# Extract features with counts from each DFM
+dfmFreq <- function(ngramDfm) {
+  topfeatures(ngramDfm, nfeature(ngramDfm))
+}
+
+unigramsFreq <- dfmFreq(unigramsDfm)
+bigramsFreq <- dfmFreq(bigramsDfm)
+trigramsFreq <- dfmFreq(trigramsDfm)
+```
+
+Downloaded corpus file
+Used LaF package to sample data from file (60%)
+Used profanity file from Shuttersock Github
+Used quanteda package to create tokenize and create ngrams
+Used parallel package and parSapply to replace profanity more efficiently
+
+created frequency counts for each ngram type
+
+# summary stats / exploratory analysis / major features
+
+quanteda: calculate lexical diversity (see various functions in quanteda)
+
+plot(topfeatures(mobyDfm, 100), log = "y", cex = .6, ylab = "Term frequency")
+
+N(tokens) total number of words in training data
+V(types) vocab size or number of unique words
+C(w_1,...,w_k-1) probability estimate for n-gram w1...wk
+P(w_k|w_1...w_k-1) conditional probability of producting wk given the history of w_1,...w_k-1
+perplexity?
+
+* For counts, see table in Gerald R. Gendron paper NLP: A model to predict a sequence of words
+
+* Zipf's Law (see Quantitative Text Analysis Exercise 3, benoit)
+
+# demonstrate zipf's law - plot log frequency by log rank
+plot(log10(1:100), log10(total[1:100]), xlab="log(rank)", ylab="log(frequency)", main = "Top 100 Words")
+
+# zipf's law also suggests that the regression slope will be approx -1.0
+regression <- lm(log10(total[1:100]) - log10(1:100))
+summary(regression)
+confint(regression)
+
+plot(topfeatures(unigramsDfm, 100), log = "y", cex = .6, ylab = "Term frequency")
+unigramsDfmPct <- unigramsFreq * 100
+plot(unigramsDfmPct[1:10], type="b", xlab="Top Ten Words", ylab="Percentage of Full Text", xaxt ="n")
+axis(1, 1:10, labels = names(unigramsDfmPct[1:10]))
+
+# ORIGINAL from above plot
+#plot(topfeatures(unigramsDfm, 100), log = "y", cex = .6, ylab = "Term frequency")
+#myDfmPct <- weight(unigramsDfm, "relFreq") * 100
+#plot(topfeatures(unigramsDfm), type="b",
+#     +      xlab="Top Ten Words", ylab="Percentage of Full Text", xaxt ="n")
+#axis(1, 1:10, labels = names(topfeatures(unigramsDfm)))
+
+#word clouds
+#immigDfm <- dfm(subset(immigCorpus, party=="BNP"), ignoredFeatures = stopwords("english"))
+#plot(immigDfm, random.color = TRUE, rot.per = .25, colors = sample(colors()[2:128], 5))
+#
+#plot(mydfm, max.words=100, colors = brewer.pal(6, "Dark2"), scale=c(8, .5))
+
+#mydfm <- dfm(subset(inaugCorpus, Year>1980))
+#mydfmSW <- dfm(subset(inaugCorpus, Year>1980), ignoredFeatures=stopwords("english"))
+#results <- data.frame(TTR = lexdiv(mydfm, "TTR"),
+#                      CTTR = lexdiv(mydfm, "CTTR"),
+#                      U = lexdiv(mydfm, "U"),
+#                      TTRs = lexdiv(mydfmSW, "TTR"),
+#                      CTTRs = lexdiv(mydfmSW, "CTTR"),
+#                      Us = lexdiv(mydfmSW, "U"))
+#results
+#cor(results)
+#t(lexdiv(mydfmSW, "Maas"))
+
+# Future Directions
+
+Our goal is fairly simple in that we would like to take the ngrams we produced above and create
+a probabilistic model which will indicate the most likely candidates for the next word in the 
+sentence. Based on the data we have computed, we now have the basic counts required to calculate
+these probabilities. We will use a conventional Markov Chain approach which allows us to leverage
+the relationship between the probabilities of higher and lower-order ngrams (or more plainly, the narrowing of the 'candidate' word choices using the immediately preceding words in the sentence as clues) to generate a maximum likeihood estimate. This estimate allows us to narrow the possibilities to a small set of features within our model. We have sufficient test data to allow for us to generate a perplexity measure which will provide confidence in the power of our model in usage with similar document types.
+
+Currently, we are in the process of building out the algorithm to calculate the precentage 
+likelihood and to correct for certain issues that arise in the context of these calculations, such
+as words which are absent from the corpus but are nevertheless valid usage in the language. With
+such a large corpus, we anticipate being able to use a simpler approach to accomodating these
+distortions in the data (see [Large Language Models in Machine Learning](http://www.aclweb.org/anthology/D07-1090.pdf) for more detail).
+
+In terms of our application, we are ever-mindful of the [limited CPU and RAM resources](http://shiny.rstudio.com/articles/shinyapps.html#application-instances) that we will have in the
+shiny.io environment. Accordingly, we look to make our current implemntation more efficient computationally
+and from the perspective of its memory footprint. As it stands, the model that we have implemented is  relatively performant in higher-end hardware but will not be viable in such a restricted environment as
+our deployment target. Our intuition is that it will be possible to generate a model which will take
+much less memory and can be persisted rather than generated on deployment.
+
+1. Use closed vocabulary/dictionary to limit number of features
+2. calculate probabilities on demand rather than prior
+3. calculate MLE in a group at once (use n-1 gram to determine ngrams to process)
+4. remove URLs, other?
+5. hash feature entries
+
+# Code 
+
+Below we capture the R code chunks used to produce the analysis above. 
+
+```{r chunk1}
+```
+
+
+goals of app and algorithm /Plans on creating a prediction algorithm and Shiny App
+
+
+Please submit a report on R Pubs (http://rpubs.com/) that explains your exploratory analysis and your goals for the eventual app and algorithm. 

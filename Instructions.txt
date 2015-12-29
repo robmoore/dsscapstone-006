@@ -1,3 +1,13 @@
+Task 0
+
+1. What do the data look like?
+2. Where do the data come from? http://www.corpora.heliohost.org/
+3. Can you think of any other data sources that might help you in this project?
+4. What are the common steps in natural language processing?
+5. What are some common issues in the analysis of text data?
+6. What is the relationship between NLP and the concepts you have learned in the Specialization?
+
+-=--=-=-=-
 
 Task 1
 
@@ -6,6 +16,7 @@ Tasks to accomplish
 1. Tokenization - identifying appropriate tokens such as words, punctuation, and numbers. Writing a function that takes a file as input and returns a tokenized version of it.
 2. Profanity filtering - removing profanity and other words you do not want to predict.
 
+http://stackoverflow.com/questions/34474601/using-dictionary-to-create-bigram-in-quanteda
 -=--=-=-=-
 
 Task 2
@@ -80,6 +91,10 @@ Grading Rubric:
 4. Was the report written in a brief, concise style, in a way that a non-data scientist manager could appreciate?
 
 
+quanteda: calculate lexical diversity (see various functions in quanteda)
+
+http://stackoverflow.com/questions/16383194/stupid-backoff-implementation-clarification
+
 http://stackoverflow.com/questions/7805061/how-to-produce-a-log-log-rank-frequency-plot
 https://cran.r-project.org/web/packages/filehash/index.html
 https://rstudio-pubs-static.s3.amazonaws.com/31867_8236987cf0a8444e962ccd2aec46d9c3.html Good stats info & usage of tm
@@ -89,7 +104,3 @@ http://stackoverflow.com/questions/16823739/r-tm-reloading-a-pcorpus-backend-fil
 https://cran.r-project.org/web/packages/quanteda/vignettes/LitVignette.html
 
 
-The guy in front of me just bought a pound of bacon, a bouquet, and a case of
-You're the reason why I smile everyday. Can you follow me please? It would mean the
-Hey sunshine, can you follow me and make me the
-Very early observations on the Bills game: Offense still struggling but the
