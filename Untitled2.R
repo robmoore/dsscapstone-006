@@ -1,3 +1,9 @@
+# 1. Use closed vocabulary/dictionary to limit number of features
+# 2. calculate probabilities on demand rather than prior
+# 3. calculate MLE in a group at once (use n-1 gram to determine ngrams to process)
+# 4. remove URLs, other?
+# 5. hash feature entries
+
 set.seed(19394399)
 
 download.maybe <- function(url, refetch=FALSE, path=".") {

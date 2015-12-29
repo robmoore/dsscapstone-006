@@ -127,7 +127,7 @@ Used parallel package and parSapply to replace profanity more efficiently
 
 created frequency counts for each ngram type
 
-# summary stats / exploratory analysis / major features
+# Exploratory analysis / major features
 
 quanteda: calculate lexical diversity (see various functions in quanteda)
 
@@ -186,8 +186,7 @@ axis(1, 1:10, labels = names(unigramsDfmPct[1:10]))
 Our goal is fairly simple in that we would like to take the ngrams we produced above and create
 a probabilistic model which will indicate the most likely candidates for the next word in the 
 sentence. Based on the data we have computed, we now have the basic counts required to calculate
-these probabilities. We will use a conventional Markov Chain approach which allows us to leverage
-the relationship between the probabilities of higher and lower-order ngrams (or more plainly, the narrowing of the 'candidate' word choices using the immediately preceding words in the sentence as clues) to generate a maximum likeihood estimate. This estimate allows us to narrow the possibilities to a small set of features within our model. We have sufficient test data to allow for us to generate a perplexity measure which will provide confidence in the power of our model in usage with similar document types.
+these probabilities. We will use a conventional Markov Chain approach which allows us to narrow the 'candidate' word choices using the immediately preceding words in the sentence as clues. We have sufficient test data to allow for us to generate a perplexity measure which will provide confidence in the power of our model in usage with similar document types.
 
 Currently, we are in the process of building out the algorithm to calculate the precentage 
 likelihood and to correct for certain issues that arise in the context of these calculations, such
@@ -201,11 +200,7 @@ and from the perspective of its memory footprint. As it stands, the model that w
 our deployment target. Our intuition is that it will be possible to generate a model which will take
 much less memory and can be persisted rather than generated on deployment.
 
-1. Use closed vocabulary/dictionary to limit number of features
-2. calculate probabilities on demand rather than prior
-3. calculate MLE in a group at once (use n-1 gram to determine ngrams to process)
-4. remove URLs, other?
-5. hash feature entries
+In terms of the application itself, we are contemplating dividing up the corpus by its different types prior to having the user type in a sentence for completion. As prediction is more accurate with similar corpus types, we expect that the user experience will be more satisfying.
 
 # Code 
 
@@ -214,8 +209,3 @@ Below we capture the R code chunks used to produce the analysis above.
 ```{r chunk1}
 ```
 
-
-goals of app and algorithm /Plans on creating a prediction algorithm and Shiny App
-
-
-Please submit a report on R Pubs (http://rpubs.com/) that explains your exploratory analysis and your goals for the eventual app and algorithm. 
