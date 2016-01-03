@@ -39,8 +39,13 @@ cl <- makeCluster(detectCores() / 2, type="FORK")
 
 # Maybe lapply to keep these distinct?
 corpus <- parSapply(cl, 
-                    c(tweets, blogs, news),
-                    function(x) tokenize(x, what = "sentence", simplify = TRUE))
+                    list(t = tweets, b = blogs, n = news),
+                    function(x) tokenize(x, what = "sentence", simplify = TRUE), USE.NAMES = TRUE)
+# or parSapply(cl, list(t = tweets, b = blogs, n = news),...)
+# preserves the list items as tokenized lists but sentences are grouped rather than being distinct.
+corpus <- parSapply(cl, 
+                    list(t = tweets, b = blogs, n = news),
+                    function(x) tokenize(x, what = "sentence"), USE.NAMES = TRUE)
 
 # Remove words to be excluded using _UNK_ placeholder
 removeProfanity <- function(txt) {

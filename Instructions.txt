@@ -90,8 +90,19 @@ Grading Rubric:
 3. Has the data scientist made basic plots, such as histograms to illustrate features of the data?
 4. Was the report written in a brief, concise style, in a way that a non-data scientist manager could appreciate?
 
+--
 
 quanteda: calculate lexical diversity (see various functions in quanteda)
+
+plot(topfeatures(mobyDfm, 100), log = "y", cex = .6, ylab = "Term frequency")
+
+N(tokens) total number of words in training data
+V(types) vocab size or number of unique words
+C(w_1,...,w_k-1) probability estimate for n-gram w1...wk
+P(w_k|w_1...w_k-1) conditional probability of producting wk given the history of w_1,...w_k-1
+perplexity?
+
+--
 
 http://stackoverflow.com/questions/16383194/stupid-backoff-implementation-clarification
 
