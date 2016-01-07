@@ -9,3 +9,5 @@ milestone-report_cache
 all.RData
 milestone-report_files
 en
+profanity.csv
+*.db

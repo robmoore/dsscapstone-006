@@ -78,7 +78,7 @@ makeDfm < function(txt, ngramCount) {
                                                 paste(rep("_S_", ngramCount - 1), collapse = " "))))
   }
   txtDfm <- dfm(txt, 
-                removePunct = TRUE, 
+                removtePunct = TRUE, 
                 toLower = FALSE, 
                 removeNumbers = TRUE, 
                 removeTwitter = TRUE, 
