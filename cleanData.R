@@ -24,17 +24,25 @@ excluded <- scan("profanity.csv",
                  sep = "\n", 
                  what = character())
 
+# Remove profanity from our dictionary
+GradyAugmentedClean <- setdiff(GradyAugmented, excluded)
+
 dbName <- "corpus.db"
 if (!file.exists(dbName)) {
   dbCreate(dbName)
 } 
 db <- dbInit(dbName)
 
+dbDelete(db, "tweets")
+dbDelete(db, "blogs")
+dbDelete(db, "news")
+dbDelete(db, "geah")
+
 geah <- scan("green-eggs-and-ham.txt",
                         sep = "\n", 
                         what = character())
 
-nLinesRatio <- .01 #.6
+nLinesRatio <- .1 #.6
 nTwitterLines <- 2360148 # can use determine_nlines("final/en_US/en_US.twitter.txt")
 nBlogLines <- 899288 # can use determine_nlines("final/en_US/en_US.blogs.txt")
 nNewsLines <- 1010242 # can use determine_nlines("final/en_US/en_US.news.txt")
@@ -44,31 +52,12 @@ db$tweets <- sample_lines("final/en_US/en_US.twitter.txt", nTwitterLines * nLine
 db$blogs <- sample_lines("final/en_US/en_US.blogs.txt", nBlogLines * nLinesRatio, nBlogLines)
 db$news <- sample_lines("final/en_US/en_US.news.txt", nNewsLines * nLinesRatio, nNewsLines)
 
-# Initiate cluster for parallel operations
-cl <- makeCluster.default()
-
 # Takes raw input and breaks out into individual sentences
 makeSentences <- function(txt) {
   unlist(parSapply(cl, 
                    txt, 
                    function(x) tokenize(x, what = "sentence", simplify = TRUE)))
 }
-
-# Convert to list of sentences
-db$tweets <- makeSentences(db$tweets)
-db$blogs <- makeSentences(db$blogs)
-db$news <- makeSentences(db$news)
-db$geah <- makeSentences(geah)
-
-# Stop cluster as we're done with it
-stopCluster(cl)
-
-#dbDelete(db, "tweets")
-#dbDelete(db, "blogs")
-#dbDelete(db, "news")
-
-# Remove profanity from our dictionary
-GradyAugmentedClean <- setdiff(GradyAugmented, excluded)
 
 # Uses dictionary and profanity list to filter out potential token values
 removeUnknownFromSentence <-  function(s) {
@@ -81,6 +70,13 @@ removeUnknownFromSentence <-  function(s) {
 # Initiate cluster for parallel operations
 cl <- makeCluster.default()
 
+# Convert to list of sentences
+db$tweets <- makeSentences(db$tweets)
+db$blogs <- makeSentences(db$blogs)
+db$news <- makeSentences(db$news)
+db$geah <- makeSentences(geah)
+
+
 removeUnknownFromText <- function(txt) parSapply(cl, txt, removeUnknownFromSentence)
 
 db$tweets <- removeUnknownFromText(db$tweets)
@@ -91,10 +87,6 @@ db$geah <- removeUnknownFromText(db$geah)
 # Stop cluster as we're done with it
 stopCluster(cl)
 
-#dbDelete(db, "tweetsSent")
-#dbDelete(db, "blogsSent")
-#dbDelete(db, "newsSent")
-
 # remove stale entries
-#dbReorganize(db)
+dbReorganize(db)
 #db <- dbInit(dbName)
