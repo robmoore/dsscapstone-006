@@ -12,6 +12,7 @@ db <- dbInit(dbName)
 tweetsSentenceCount <- length(db$tweets)
 blogsSentenceCount <- length(db$blogs)
 newsSentenceCount <- length(db$news)
+geahSentenceCount <- length(db$geah)
 
 createNgramsHash <- function(txt, count) {
   if (count > 1) {
@@ -44,6 +45,7 @@ cl <- makeCluster.default()
 tweetsNgramsHash <- createNgramsHashAll(db$tweets)
 blogsNgramsHash <- createNgramsHashAll(db$blogs)
 newsNgramsHash <- createNgramsHashAll(db$news)
+geahNgramsHash <- createNgramsHashAll(db$geah)
 
 stopCluster(cl)
 
@@ -55,66 +57,43 @@ stopCluster(cl)
 #[1] 301433
 
 # Create hash of percentages for unigrams, bigrams, and trigrams
-createNgramsPercentages <- function(h) {
+createUnigramsPercentages <- function(h) {
   hash(keys(h), values(h) / sum(values(h)))
+} 
+
+createOtherGramsPercentages <- function(key, loGramPs, hiGramPs, sentenceCount) {
+  loGramKey <- gsub("^(.*)_(_S_|_UNK_|[^_]+)$", "\\1", key, perl = TRUE)
+  
+  loGramCount <- ifelse(grepl("^((?:_)?_S_(?:_)?)*$", loGramKey),
+                        sentenceCount, # Need to determine if we want to account for all sentences or all sentences + all unigram count
+                        loGramPs[[loGramKey]])
+  
+  #print(paste("[", key, "] [", loGramKey, "]:", hiGramPs[[key]], "/", loGramCount))
+  
+  hiGramPs[[key]] / loGramCount
 }
 
-#createNgramsPercentages <- function(h) hash(keys(h), values(h) / sum(values(h)))
-
-createNgramsPercentagesAll <- function(l) {
-  sapply(list(unigrams = "unigrams", bigrams = "bigrams", trigrams = "trigrams"), 
-         function(n) createNgramsPercentages(l[[n]]), 
-         USE.NAMES = TRUE)
+createNgramsPercentagesAll <- function(ngramsHash, sentenceCount) {
+  list(unigrams = createUnigramsPercentages(ngramsHash$unigrams), 
+       bigrams = hash(sapply(keys(ngramsHash$bigrams), function(key) createOtherGramsPercentages(key, 
+                                                                                                 loGramPs = ngramsHash$unigrams, 
+                                                                                                 hiGramPs = ngramsHash$bigrams, 
+                                                                                                 sentenceCount = sentenceCount))),
+       trigrams = hash(sapply(keys(ngramsHash$trigrams), function(key) createOtherGramsPercentages(key, 
+                                                                                                  loGramPs = ngramsHash$bigrams, 
+                                                                                                  hiGramPs = ngramsHash$trigrams, 
+                                                                                                  sentenceCount = sentenceCount))))
 }
 
-# Remove trigrams singletons?
+# TODO: Remove trigrams singletons?
 # invert trigrams and find values with 1 and then remove from original hash using returned values (aka keys)
 # iTrigrams <- invert(tweetsNgramsHash$trigrams) # This takes a long time and isn't efficient
 
 # Create raw percentages (frequency-based)
-tweetsNgramsPercentages <- createNgramsPercentagesAll(tweetsNgramsHash)
-blogsNgramsPercentages <- createNgramsPercentagesAll(blogsNgramsHash)
-newsNgramsPercentages <- createNgramsPercentagesAll(newsNgramsHash)
-
-# Create normalized percentages (based on n-1 gram percentages)
-
-# For each bigram or trigram
-# get values, get first component (eg, a of a_b) and look up percantage of that
-
-createNormalizedPercentages <- function(key, loGramPs, hiGramPs, sentenceCount) {
-  #loGramKey <- gsub("^(_S_|_UNK_|[^_]*)_(?:_S_|_UNK_|[^_]*)$", "\\1", key, perl = TRUE)
-  loGramKey <- gsub("^(_S_|_UNK_|[^_]*)(?:_(_S_|_UNK_|[^_]*))$|^((_S_|_UNK_|[^_]*)_(_S_|_UNK_|[^_]*))(?:_(_S_|_UNK_|[^_]*))$", 
-                    "\\1\\3", key, perl = TRUE)
-
-  #print(loGramKey)
-
-  loGramCount <- ifelse(identical(loGramKey, "_S_") || identical(loGramKey, "_S___S_"),
-                        sentenceCount, # Need to determine if we want to account for all sentences or all sentences + all unigram count
-                        loGramPs[[loGramKey]])
-
-  hiGramPs[[key]] / loGramCount
-}
-
-createNgramsNormPercentages <- function(ngramsPercentages, sentenceCount) { # should sentence count be total # of items in ngram list?
-  list(bigrams = hash(sapply(keys(ngramsPercentages$bigrams), function(key) createNormalizedPercentages(key, 
-                                                                                                   loGramPs = ngramsPercentages$unigrams, 
-                                                                                                   hiGramPs = ngramsPercentages$bigrams, 
-                                                                                                  sentenceCount = sentenceCount))),
-       trigrams = hash(sapply(keys(ngramsPercentages$trigrams), function(key) createNormalizedPercentages(key, 
-                                                                                                     loGramPs = ngramsPercentages$bigrams, 
-                                                                                                     hiGramPs = ngramsPercentages$trigrams, 
-                                                                                                     sentenceCount = sentenceCount))))
-}
-
-tweetsNgramsNormPercentages <- createNgramsNormPercentages(ngramsPercentages = tweetsNgramsPercentages,
-                                                           sentenceCount = tweetsSentenceCount)
-
-blogsNgramsNormPercentages <- createNgramsNormPercentages(ngramsPercentages = blogsNgramsPercentages,
-                                                           sentenceCount = blogsSentenceCount)
-
-newsNgramsNormPercentages <- createNgramsNormPercentages(ngramsPercentages = newsNgramsPercentages,
-                                                           sentenceCount = newsSentenceCount)
-
+tweetsNgramsPercentages <- createNgramsPercentagesAll(tweetsNgramsHash, tweetsSentenceCount)
+blogsNgramsPercentages <- createNgramsPercentagesAll(blogsNgramsHash, blogsSentenceCount)
+newsNgramsPercentages <- createNgramsPercentagesAll(newsNgramsHash, newsSentenceCount)
+geahNgramsPercentages <- createNgramsPercentagesAll(geahNgramsHash, geahSentenceCount)
 
 # Stupid backoff lookup
 

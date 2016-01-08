@@ -30,6 +30,10 @@ if (!file.exists(dbName)) {
 } 
 db <- dbInit(dbName)
 
+geah <- scan("green-eggs-and-ham.txt",
+                        sep = "\n", 
+                        what = character())
+
 nLinesRatio <- .01 #.6
 nTwitterLines <- 2360148 # can use determine_nlines("final/en_US/en_US.twitter.txt")
 nBlogLines <- 899288 # can use determine_nlines("final/en_US/en_US.blogs.txt")
@@ -54,6 +58,7 @@ makeSentences <- function(txt) {
 db$tweets <- makeSentences(db$tweets)
 db$blogs <- makeSentences(db$blogs)
 db$news <- makeSentences(db$news)
+db$geah <- makeSentences(geah)
 
 # Stop cluster as we're done with it
 stopCluster(cl)
@@ -81,6 +86,7 @@ removeUnknownFromText <- function(txt) parSapply(cl, txt, removeUnknownFromSente
 db$tweets <- removeUnknownFromText(db$tweets)
 db$blogs <- removeUnknownFromText(db$blogs)
 db$news <- removeUnknownFromText(db$news)
+db$geah <- removeUnknownFromText(db$geah)
 
 # Stop cluster as we're done with it
 stopCluster(cl)
