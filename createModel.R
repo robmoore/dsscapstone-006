@@ -1,12 +1,5 @@
-library(parallel)
-library(quanteda)
-library(filehash)
-library(fastmatch)
-library(hash)
-
 source("common.R")
 
-dbName <- "corpus.db"
 db <- dbInit(dbName)
 
 tweetsSentenceCount <- length(db$tweets)
@@ -14,88 +7,32 @@ blogsSentenceCount <- length(db$blogs)
 newsSentenceCount <- length(db$news)
 geahSentenceCount <- length(db$geah)
 
-createNgramsHash <- function(txt, count, removeSingletons = TRUE) {
-  if (count > 1) {
-    txt <- parSapply(cl, txt, function(x) paste(paste(rep("_S_", count - 1), collapse = " "), 
-                                                x, 
-                                                paste(rep("_S_", count - 1), collapse = " ")))
-  }
-  
-  t <- table(tokenize(txt, ngrams = count, simplify = TRUE))
-  # filter out singletons for count > 2
-  if (count > 2 && removeSingletons) t <- t[t > 1]
-  hash(t)
-}
-
-createNgramsHashAll <- function(txt, removeSingletons = TRUE) {
-  sapply(list(unigrams = 1, bigrams = 2, trigrams = 3), 
-         function(c) createNgramsHash(txt, c, removeSingletons), 
-         USE.NAMES = TRUE)
-}
-
-#createNgramsHashAllP <- function(txt) {
-#  cl <- makeCluster(detectCores() * .75)
-#  r <- parSapply(cl, 
-#                 list(unigrams = 1, bigrams = 2, trigrams = 3), 
-#                 function(c) createNgramsHash(txt, c), 
-#                 USE.NAMES = TRUE)
-#  stopCluster(cl)
-#}
-
-# Calculate probabilities
-
-# Create hash of percentages for unigrams, bigrams, and trigrams
-createUnigramsPercentages <- function(h) {
-  hash(keys(h), values(h) / sum(values(h)))
-} 
-
-createOtherGramsPercentages <- function(key, loGramPs, hiGramPs, sentenceCount) {
-  loGramKey <- gsub("^(.*)_(_S_|_UNK_|[^_]+)$", "\\1", key, perl = TRUE)
-  
-  loGramCount <- ifelse(grepl("^((?:_)?_S_(?:_)?)*$", loGramKey),
-                        sentenceCount, # Need to determine if we want to account for all sentences or all sentences + all unigram count
-                        loGramPs[[loGramKey]])
-  
-  #print(paste("[", key, "] [", loGramKey, "]:", hiGramPs[[key]], "/", loGramCount))
-  
-  hiGramPs[[key]] / loGramCount
-}
-
-createNgramsPercentagesAll <- function(ngramsHash, sentenceCount) {
-  list(unigrams = createUnigramsPercentages(ngramsHash$unigrams), 
-       bigrams = hash(parSapply(cl, keys(ngramsHash$bigrams), function(key) createOtherGramsPercentages(key, 
-                                                                                                        loGramPs = ngramsHash$unigrams, 
-                                                                                                        hiGramPs = ngramsHash$bigrams, 
-                                                                                                        sentenceCount = sentenceCount))),
-       trigrams = hash(parSapply(cl, keys(ngramsHash$trigrams), function(key) createOtherGramsPercentages(key, 
-                                                                                                          loGramPs = ngramsHash$bigrams, 
-                                                                                                          hiGramPs = ngramsHash$trigrams, 
-                                                                                                          sentenceCount = sentenceCount))))
-}
-
 # Make ngrams
 cl <- makeCluster.default()
 
-tweetsNgramsHash <- createNgramsHashAll(db$tweets)
-blogsNgramsHash <- createNgramsHashAll(db$blogs)
-newsNgramsHash <- createNgramsHashAll(db$news)
-geahNgramsHash <- createNgramsHashAll(db$geah, removeSingletons = FALSE)
+db$tweets <- createNgramsHashAll(db$tweets)
+db$blogs <- createNgramsHashAll(db$blogs)
+db$news <- createNgramsHashAll(db$news)
+db$geah <- createNgramsHashAll(db$geah, removeSingletons = FALSE)
 
 # Create percentages (frequency-based)
-db$tweetsNgramsPercentages <- createNgramsPercentagesAll(tweetsNgramsHash, tweetsSentenceCount)
-db$blogsNgramsPercentages <- createNgramsPercentagesAll(blogsNgramsHash, blogsSentenceCount)
-db$newsNgramsPercentages <- createNgramsPercentagesAll(newsNgramsHash, newsSentenceCount)
-db$geahNgramsPercentages <- createNgramsPercentagesAll(geahNgramsHash, geahSentenceCount)
+db$tweets <- createNgramsPercentagesAll(db$tweets, tweetsSentenceCount)
+db$blogs <- createNgramsPercentagesAll(db$blogs, blogsSentenceCount)
+db$news <- createNgramsPercentagesAll(db$news, newsSentenceCount)
+db$geah <- createNgramsPercentagesAll(db$geah, geahSentenceCount)
 
 stopCluster(cl)
 
-#rm(list = ls(pattern="*NgramsHash"))
-
 # Stupid backoff lookup
 
-#on searches:
-# strip puncuation
-# lowercase
-# check words against dictionary (that is, change to _UNK_)
+# Determine length of text to know where to start or maybe just stupidly search
 
-# on results back, filter out anything ending in _UNK_. that is, it's not a valid word so you'll need to backoff
+# sam_i_am
+# have to use ngram + 1 (so trigram in sam_i case)
+# and look for i_am so whatever my largest ngram is I need to have a key that is one word less
+# trigrams[i_am] -> need to find keys for all trigrams that start with this and look up their props
+# and then back off to next level and do same thing
+
+# this_is = lookup in trigrams for next word
+# this = lookup in bigrams for next word
+
