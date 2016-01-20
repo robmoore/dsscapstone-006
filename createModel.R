@@ -2,37 +2,28 @@ source("common.R")
 
 db <- dbInit(dbName)
 
-tweetsSentenceCount <- length(db$tweets)
-blogsSentenceCount <- length(db$blogs)
-newsSentenceCount <- length(db$news)
-geahSentenceCount <- length(db$geah)
+#lazyDb <- new.env()
+#dbLazyLoad(db, lazyDb, c('tweets', 'blogs', 'geah'))
 
-# Make ngrams
 cl <- makeCluster.default()
 
-db$tweets <- createNgramsHashAll(db$tweets)
-db$blogs <- createNgramsHashAll(db$blogs)
-db$news <- createNgramsHashAll(db$news)
-db$geah <- createNgramsHashAll(db$geah, removeSingletons = FALSE)
+print("Calculating percentages")
+tweets <- calculatePercentages(db$tweets)
+blogs <- calculatePercentages(db$blogs)
+#db$news <- calculatePercentages(db$news)
+geah <- calculatePercentages(db$geah, removeSingletons = FALSE)
 
-# Create percentages (frequency-based)
-db$tweets <- createNgramsPercentagesAll(db$tweets, tweetsSentenceCount)
-db$blogs <- createNgramsPercentagesAll(db$blogs, blogsSentenceCount)
-db$news <- createNgramsPercentagesAll(db$news, newsSentenceCount)
-db$geah <- createNgramsPercentagesAll(db$geah, geahSentenceCount)
+print("Creating model")
+db$tweetsModel <- makeNgramModel(tweets)
+db$blogsModel <- makeNgramModel(blogs)
+#db$newsModel <- makeNgramModel(db$news)
+db$geahModel <- makeNgramModel(geah)
+
+# Perplexity calculation
+# The cross-entropy is the average of the negative logarithm of the word probabilities. 
+# In Figure 7.2 , next to each probability you can find its negative log2.
+#I would like to commend the rapporteur on his work.
 
 stopCluster(cl)
 
-# Stupid backoff lookup
-
-# Determine length of text to know where to start or maybe just stupidly search
-
-# sam_i_am
-# have to use ngram + 1 (so trigram in sam_i case)
-# and look for i_am so whatever my largest ngram is I need to have a key that is one word less
-# trigrams[i_am] -> need to find keys for all trigrams that start with this and look up their props
-# and then back off to next level and do same thing
-
-# this_is = lookup in trigrams for next word
-# this = lookup in bigrams for next word
-
+dbReorganize(db)

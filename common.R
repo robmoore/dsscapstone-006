@@ -7,9 +7,25 @@ library(fastmatch)
 library(pipeR)
 library(rlist)
 library(hash)
+#library(memoise)
+library(stringi)
+library(stringr)
+# look at stashR for remote repo
 
-filehashOption(defaultType = "RDS")
-dbName <- "corpus"
+# For reproducibility's sake
+set.seed(19394399)
+
+# Words to be excluded from text, eg profanity
+excluded <- scan("profanity.csv", 
+                 sep = "\n", 
+                 what = character())
+
+# Remove profanity from our dictionary
+GradyAugmentedClean <- setdiff(GradyAugmented, excluded)
+rm(excluded)
+
+#filehashOption(defaultType = "RDS")
+dbName <- "corpus.db1"
 
 download.maybe <- function(url, refetch=FALSE, path=".") {
   dest <- file.path(path, basename(url))
@@ -22,7 +38,7 @@ download.maybe <- function(url, refetch=FALSE, path=".") {
 "%fin%" <- function(x, table) fmatch(x, table, nomatch = 0) > 0
 
 #makeCluster.default <- function() makeCluster(detectCores() * .75, type="FORK") # FORK will not work on Windows
-makeCluster.default <- function() makeForkCluster(detectCores() * .75)
+makeCluster.default <- function() makeForkCluster(detectCores() * .75, outfile = "cluster-outfile.txt")
 
 # Takes raw input and breaks out into individual sentences
 makeSentences <- function(txt) {
@@ -33,10 +49,15 @@ makeSentences <- function(txt) {
 
 # Uses dictionary and profanity list to filter out potential token values
 removeUnknownFromSentence <-  function(s) {
-  sTokens <- tokenize(toLower(s), removePunct = TRUE, removeTwitter = TRUE, removeHyphens = TRUE)
-  # UNK if not in dictionary
-  sTokens <- unname(sapply(sTokens, function(x) ifelse(x %fin% GradyAugmentedClean, x, "_UNK_")))
-  paste(sTokens, collapse = ' ')
+  if (nchar(s) != 0) {
+    sTokens <- tokenize(toLower(s), removePunct = TRUE, removeTwitter = TRUE, removeHyphens = TRUE)
+    # UNK if not in dictionary
+    sTokens <- unname(sapply(sTokens, function(x) ifelse(x %fin% GradyAugmentedClean, x, "_UNK_")))
+    sTokens <- unname(sapply(sTokens, function(x) gsub("http[^ ]*", "_UNK_", x)))
+    paste(sTokens, collapse = ' ')
+  } else {
+    s
+  }
 }
 
 removeUnknownFromText <- function(txt) parSapply(cl, txt, removeUnknownFromSentence)
@@ -60,15 +81,16 @@ grabFiles <- function() {
   download.maybe("https://gist.github.com/tjrobinson/2366772/raw/97329ead3d5ab06160c3c7ac1d3bcefa4f66b164/profanity.csv")
 }
 
+grabFiles()
+
 #---
 
+# TODO: Do we really need the parSapply or even sapply below? it must not be a list or the tokennize call wouldn't work, right?
 createNgramsHash <- function(txt, count, removeSingletons = TRUE) {
-  if (count > 1) {
-    txt <- sapply(txt, function(x) paste(paste(rep("_S_", count - 1), collapse = " "), 
-                                         x, 
-                                         paste(rep("_S_", count - 1), collapse = " ")))
-  }
-  
+  if (count > 1)
+    #txt <- parSapply(cl, txt, function(x) paste(paste(rep("_S_", count - 1), collapse = " "), x, paste(rep("_S_", count - 1), collapse = " ")))
+    txt <- sapply(txt, function(x) paste(paste(rep("_S_", count - 1), collapse = " "), x, paste(rep("_S_", count - 1), collapse = " ")))
+
   t <- table(tokenize(txt, ngrams = count, simplify = TRUE))
   # filter out singletons for count > 2
   if (count > 2 && removeSingletons) t <- t[t > 1]
@@ -76,9 +98,17 @@ createNgramsHash <- function(txt, count, removeSingletons = TRUE) {
 }
 
 createNgramsHashAll <- function(txt, removeSingletons = TRUE) {
-  parSapply(cl, list(unigrams = 1, bigrams = 2, trigrams = 3), 
-            function(c) createNgramsHash(txt, c, removeSingletons))
+  parSapply(cl, 
+            list(unigrams = 1, bigrams = 2, trigrams = 3, quadgrams = 4), 
+            function(c) createNgramsHash(txt, c, removeSingletons && c > 2))
+#  sapply(list(unigrams = 1, bigrams = 2, trigrams = 3, quadgrams = 4), 
+#            function(c) createNgramsHash(txt, c, removeSingletons && c > 2))
 }
+
+#createNgramsHashAll <- function(txt, removeSingletons = TRUE) {
+#  parSapply(cl, list(unigrams = 1, bigrams = 2, trigrams = 3), 
+#            function(c) createNgramsHash(txt, c, removeSingletons))
+#}
 
 # Calculate probabilities
 
@@ -109,24 +139,40 @@ createNgramsPercentagesAll <- function(ngramsHash, sentenceCount) {
        trigrams = hash(parSapply(cl, keys(ngramsHash$trigrams), function(key) createOtherGramsPercentages(key, 
                                                                                                           loGramPs = ngramsHash$bigrams, 
                                                                                                           hiGramPs = ngramsHash$trigrams, 
-                                                                                                          sentenceCount = sentenceCount))))
+                                                                                                          sentenceCount = sentenceCount))),
+       quadgrams = hash(parSapply(cl, keys(ngramsHash$quadgrams), function(key) createOtherGramsPercentages(key, 
+                                                                                                            loGramPs = ngramsHash$trigrams, 
+                                                                                                            hiGramPs = ngramsHash$quadgrams, 
+                                                                                                            sentenceCount = sentenceCount))))
 }
 
 # only keeps last tokens on an ngram (_ sep) string
 ngramTail <- function(ngram, count = ngramLength(ngram) - 1) {
-  q <- unlist(strsplit(ngram, "_", fixed = TRUE))
+  q <- stri_match_all_regex(ngram, "(_S_|_UNK_|[^_]+)")[[1]][,1]
   paste(tail(q, count), collapse = "_")
 }
 
+ngramHead <- function(ngram, count = 1) {
+  q <- stri_match_all_regex(ngram, "(_S_|_UNK_|[^_]+)")[[1]][,1]
+  paste(head(q, count), collapse = "_")
+}
+
+# Returns indicated token/tokens using index
+ngramToken <- function(ngram, count = 1) {
+  stri_match_all_regex(ngram, "(_S_|_UNK_|[^_]+)")[[1]][,1][count]
+}
+
 ngramLength <- function(ngram) {
-  length(unlist(strsplit(ngram, "_", fixed = TRUE)))
+  str(ngram)
+  stri_count_regex(ngram, "(_S_|_UNK_|[^_]+)")
 }
 
 # adjust ngram down to length of ngram in query + 1 before making this call
 matchingKeys <- function(ngram, ngrams) {
   nl <- ngramLength(ngram)
-  keys(ngrams[[nl + 1]])[grepl(paste0("^", ngram, "_"), 
-                               keys(ngrams[[nl + 1]]))]
+  ks <- keys(ngrams[[nl + 1]])
+  ks[grepl(paste0("^", ngram, "_"), # Use fastmatch here?
+           ks)]
 }
 
 matchingValues <- function(ngram, ngrams, n = 3) {
@@ -148,14 +194,14 @@ processValues <- function(ngram, ngrams, n) {
 }
 
 countResults <- function(rs) {
-  str(rs)
+  #str(rs)
   if(length(rs) != 0) 
-    sum(sapply(rs, function(r) if(length(r) != 0) sapply(r, function(sr) length(sr)) else 0))
+    length(list.cases(sapply(list.cases(sapply(rs, function(r) keys(r))), function(x) ngramTail(x,1))))
   else 0
 }
 
 # TODO: if single ngram (unigram) use rep _S_ at beginning to fill it out?
-queryNgramProbs <- function(ngram, ngrams, ks = c(), vs = c(), n = 0) {
+queryNgramProbs <- function(ngram, ngrams, ks = c(), vs = c(), n = 0, maxResults = 3) {
   #print(paste("ks:", ks))
   #print(paste("count for", ks, ":", countResults(vs)))
   nl <- ngramLength(ngram)
@@ -163,7 +209,7 @@ queryNgramProbs <- function(ngram, ngrams, ks = c(), vs = c(), n = 0) {
   if (nsl <= nl) # If too long for # of ngram lengths we have then trim down
     Recall(ngram = ngramTail(ngram, nsl - 1),
            ngrams = ngrams)
-  else if(nl != 0 && countResults(vs) < 3)
+  else if(nl != 0 && countResults(vs) < maxResults)
     Recall(ngram = ngramTail(ngram), 
            ngrams = ngrams, 
            ks = c(ks, ngram),
@@ -174,8 +220,198 @@ queryNgramProbs <- function(ngram, ngrams, ks = c(), vs = c(), n = 0) {
 }
 
 cleanQuery <- function(query, maxCount) {
-  tQuery <- unname(unlist(tokenize(query)))
-  if(!missing(maxCount) && maxCount < length(tQuery))
-    tQuery <- tail(tQuery, maxCount)
-  paste(tQuery, collapse="_")
+  #print(query)
+  if (nchar(query) != 0) {
+    tQuery <- unname(unlist(tokenize(query)))
+    if(!missing(maxCount) && maxCount < length(tQuery))
+      tQuery <- tail(tQuery, maxCount)
+    paste(tQuery, collapse="_")
+  } else {
+    query
+  }
+}
+
+# Create percentages (frequency-based)
+calculatePercentages <- function(txtV, removeSingletons = TRUE) {
+  force(txtV)
+  createNgramsPercentagesAll(createNgramsHashAll(txtV, removeSingletons), length(txtV))
+}
+
+quotemeta <- function(string) {
+  str_replace_all(string, "(\\W)", "\\\\\\1")
+}
+
+# setClass("Node",
+#          slots = list(ngram = "character", p = "numeric", snodes = "list"))
+# makeModel <- function(ngram, ngrams, count = 1, model = hash()) {
+#   print(paste("Processing", ngram, ", count:", count))
+#   ngramsLength = length(ngrams)
+#   p = ngrams[[count]][[ngram]] 
+#   sbMultiplier <- ngramsLength - count
+#   if (sbMultiplier != 0)
+#     p <- p * sbMultiplier * .4
+#   node <- new("Node", ngram = ngram, p = p)
+#   if (count != ngramsLength) {
+#     subnodes <- grep(paste0("^", quotemeta(ngram), "_"), keys(ngrams[[count + 1]]), value = TRUE, perl = TRUE)
+#     if (length(subnodes) != 0) {
+#       node@snodes <- lapply(subnodes, function(subNgram) makeModel(subNgram, ngrams, count + 1, model))
+#     }
+#   }
+#   model[[ngram]] <- node
+#   list(w = ngramTail(ngram, 1), p = p)
+# }
+
+# makeModel <- function(ngram, ngrams, count = 1) {
+#   print(paste("Processing", ngram, ", count:", count))
+#   ngramsLength = length(ngrams)
+#   p = ngrams[[count]][[ngram]] 
+#   sbMultiplier <- ngramsLength - count
+#   if (sbMultiplier != 0)
+#     p <- p * sbMultiplier * .4
+#   #node <- new("Node", ngram = ngram, p = p)
+#   #node <- list(ngram = ngram, w = ngramTail(ngram, 1), p = p)
+#   node <- list(ngram = ngram, w = ngramTail(ngram, 1), p = p)
+#   r <- list(node)
+#   if (count != ngramsLength) {
+#     subnodes <- grep(paste0("^", quotemeta(ngram), "_"), keys(ngrams[[count + 1]]), value = TRUE, perl = TRUE)
+#     if (length(subnodes) != 0) {
+#       snodes <- lapply(subnodes, function(subNgram) makeModel(subNgram, ngrams, count + 1))
+#       #print(paste("length of snodes:", length(snodes)))
+#       #str(snodes %>>% list.take(1) %>>% list.take(1))
+#       #r$snodePs <- snodes %>>% list.take(1) %>>% list.select(w, p) %>>% list.sort((p))
+#       r <- c(r, snodes)
+#     }
+#   }
+#   #model[[ngram]] <- node
+#   #list(node = node, snodes = snodes)
+#   r
+# }
+# 
+# makeNgramModel <- function(ngrams, count = 1) {
+#   #parSapply(cl, keys(ngrams[[count]]), function(ngram) makeModel(ngram, ngrams, count))
+#   lapply(keys(ngrams[[count]]), function(ngram) makeModel(ngram, ngrams, count))
+# }
+
+# TODO: Consider storing the name of the subnode in the node when creating the maps to begin with?
+makeModel <- function(ngram, ngrams, count = 1) {
+  print(paste("Processing", ngram))
+  ngramsLength = length(ngrams)
+  p = ngrams[[count]][[ngram]] 
+  sbMultiplier <- ngramsLength - count
+  if (sbMultiplier != 0)
+    p <- p * sbMultiplier * .4
+  node <- list(ngram = ngram, p = p)
+  if (count != ngramsLength) {
+    subnodes <- grep(paste0("^", quotemeta(ngram), "_"), keys(ngrams[[count + 1]]), value = TRUE, perl = TRUE)
+    if (length(subnodes) != 0) {
+      node$snodeProbs <- lapply(subnodes, 
+                                function(subnode) list(w = ngramTail(subnode, 1),
+                                                       p = (ngrams[[count + 1]][[subnode]]))) %>>%  list.sort((p))
+    }
+  }
+  node
+}
+
+makeNgramModelWrapper <- function(ngrams, count = 1) {
+  hash(parSapply(cl, keys(ngrams[[count]]), function(ngram) makeModel(ngram, ngrams, count), simplify = FALSE, USE.NAMES = TRUE))
+}
+
+makeNgramModel <- function(ngrams) {
+  list(unigrams = makeNgramModelWrapper(ngrams, 1),
+       bigrams = makeNgramModelWrapper(ngrams, 2),
+       trigrams = makeNgramModelWrapper(ngrams, 3),
+       quadgrams = ngrams$quadgrams)
+}
+
+# makeNgramModel <- function(ngrams, count = 1) {
+#   models <- parSapply(cl, keys(ngrams[[count]]), function(ngram) makeModel(ngram, ngrams, count))
+#   
+#   #sapply(keys(ngrams[[count]]), function(ngram) makeModel(ngram, ngrams, count))
+# }
+# 
+# makeNgramModel <- function(ngrams, count = 1) {
+#   model <- hash()
+#   #parSapply(cl, keys(ngrams[[count]]), function(ngram) {
+#   #  makeModel(ngram, ngrams, count, model)
+#   #})
+#   sapply(keys(ngrams[[count]]), function(ngram) makeModel(ngram, ngrams, count, model))
+#   model
+# }
+
+lookupProbs <- function(ngram, ngrams, resultsCount = 0) {
+  ngramLength <- ngramLength(ngram)
+  #print(ngramLength)
+  node <- ngrams[[ngramLength]][[ngram]] 
+  #print(node)
+  results <- node$snodeProbs[1:3] %>>% list.clean
+  resultsCount <- resultsCount + length(results)
+  #print(resultsCount)
+  
+  if (ngramLength > 1 && resultsCount < 3)
+    results <- c(results, lookupProbs(ngramTail(ngram), ngrams, resultsCount))
+
+  results
+}
+
+lookupProbsWrapper <- function(ngram, ngrams) {
+  str(ngram)
+  results <- lookupProbs(ngram, ngrams)
+  #str(results)
+  results %>>% list.sort(-p) %>>% list.group(w) %>>% list.map(list.first(.)) %>>% list.take(3) %>>% list.sort(-p) %>>% unname
+}
+
+# findNodes <- function(ngram, h) {
+#   if (nchar(ngram) == 0)
+#     list()
+#   else {
+#     node <- h[[ngram]]
+#     c(node@snodes, findNodes(ngramTail(ngram), h))
+#   }
+# }
+# 
+# findFilteredNodes <- function(ngram, h) {
+#   findNodes(ngram, h) %>>% list.sort(-p) %>>% list.group(w) %>>% list.map(list.first(.)) %>>% unname
+# }
+
+predict.baseline.raw <- function(q, model) {
+  print(paste0("Predicting for '", q, "'"))
+  if (nchar(trimws(q)) == 0) {
+    q <- paste(replicate(3, "_S_"), collapse = "_")
+  } else {
+    q <- removeUnknownFromSentence(q)
+    q <- cleanQuery(q, 3)
+    # Fill out query to 3 tokens if less
+    tokenCount <- stri_count_regex(q, "([^_]+)")
+    if (tokenCount < 3)
+      q <- paste0(paste0(replicate(3 - tokenCount, "_S_"), collapse = "_"), "_", q)
+  }
+  print(paste("Modified query:", q))
+  
+  #rs <- memoQueryNgramProbs(q, dbTweets)
+  #rs <- memQueryNgramProbs(q)
+  #rs <- findFilteredNodes(q, dbTweetsModel) 
+  #env <- new.env()
+  #dbLazyLoad(db, env, c('tweetsModel'))
+  suggestions <- lookupProbsWrapper(q, model)
+  # combine the hashes in lists
+  # order by score
+  # get max 3
+  # grab last 'word' from ngrams
+  
+  # 1] "ks: __UNK" _S___S___UNK_"
+  # ks: UNK__record" _UNK___UNK__record"
+  
+  #print(rs)
+  #c('the','be','to')
+  #pick top three suggestions 
+  #suggestions <- sapply(values(rs), 
+  #                      function(x) as.list(x)) %>>% list.flatten %>>% list.sort(-.) %>>% list.map(ngramTail(.name, 1)) %>>% list.cases(sorted = FALSE) %>>% list.take(3)
+  #str(rs)
+#   suggestions <- sapply(rs, 
+#                         function(x) list.map(w) %>>% list.take(3))
+  print(paste("Suggestions:", paste(suggestions, collapse = ",")))
+  #print(paste("Suggestions:", paste(rs, collapse = ",")))
+  #print(suggestions)
+  #str(suggestions)
+  suggestions %>>% list.mapv(w) #%>>% list.flatten(use.names = FALSE)
 }

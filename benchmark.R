@@ -101,10 +101,14 @@ benchmark <- compiler::cmpfun(function(FUN, ..., sent.list, ext.output=T) {
                                    split <- split.sentence(sent[1])
                                    max.score <- max.score + ncol(split)*3
                                    total.count <- total.count + ncol(split)
+#                                    rank <- parSapply(cl,seq_len(ncol(split)),
+#                                                   function(i) {
+#                                                     min(which(FUN(split[1,i], ...)==split[2,i]),4)
+#                                                   })
                                    rank <- sapply(seq_len(ncol(split)),
-                                                  function(i) {
-                                                    min(which(FUN(split[1,i], ...)==split[2,i]),4)
-                                                  })
+                                                     function(i) {
+                                                       min(which(FUN(split[1,i], ...)==split[2,i]),4)
+                                                     })
                                    score <- score + sum(4-rank)
                                    hit.count.top3 <- hit.count.top3 + sum(rank<4)
                                    hit.count.top1 <- hit.count.top1 + sum(rank==1)
@@ -205,9 +209,27 @@ benchmark <- compiler::cmpfun(function(FUN, ..., sent.list, ext.output=T) {
 
 # As an example, we create a very simple baseline algorithm which always returns
 # the three most frequent English words.
-predict.baseline <- function(x){c('the', 'on', 'a')}
+#predict.baseline <- function(x){
+#  stop(length(x))
+#  c('the', 'on', 'a')
+#}
 
+source("common.R")
 
+predict.baseline <- function(q) {
+  if (!exists("env")) {
+    db <- dbInit(dbName)
+    env <- new.env()
+    dbLazyLoad(db, env, c('tweetsModel'))
+  }
+  predict.baseline.raw(q, env$tweetsModel)  
+}
+
+#if (!exists("memoQueryNgramProbs"))
+#  memoQueryNgramProbs <- memoise(queryNgramProbs)
+
+#dbTweets <- db$tweets
+#cl <- makeCluster.default()
 
 ################################################################################################
 #
@@ -219,3 +241,4 @@ benchmark(predict.baseline,
           sent.list = list('tweets' = tweets, 
                            'blogs' = blogs), 
           ext.output = T)
+

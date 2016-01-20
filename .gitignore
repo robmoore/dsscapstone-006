@@ -12,3 +12,8 @@ en
 profanity.csv
 *.db
 corpus
+data.zip
+data
+.RDataTmp
+cluster-outfile.txt
+corpus.db1
