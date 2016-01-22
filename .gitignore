@@ -16,4 +16,4 @@ data.zip
 data
 .RDataTmp
 cluster-outfile.txt
-corpus.db1
+*.db1
