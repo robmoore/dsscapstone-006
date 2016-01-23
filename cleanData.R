@@ -1,5 +1,5 @@
 source("common.R")
-cleanDbName <- "mclapply-test-2.db1"
+#cleanDbName <- "mclapply-test-2.db1"
 if (!file.exists(cleanDbName)) {
   dbCreate(cleanDbName)
 }
@@ -19,7 +19,7 @@ nBlogLines <- 899288 # can use determine_nlines("final/en_US/en_US.blogs.txt")
 #nBlogLines <- 0
 nNewsLines <- 1010242 # can use determine_nlines("final/en_US/en_US.news.txt")
 #nNewsLines <- 0
-nTotalLines <- nTwitterLines + nBlogLines + nNewsLines
+#nTotalLines <- nTwitterLines + nBlogLines + nNewsLines
 
 tweets <- sample_lines("final/en_US/en_US.twitter.txt", nTwitterLines * nLinesRatio, nTwitterLines)
 blogs <- sample_lines("final/en_US/en_US.blogs.txt", nBlogLines * nLinesRatio, nBlogLines)

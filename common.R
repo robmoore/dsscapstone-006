@@ -51,8 +51,8 @@ removeUnknownFromSentence <-  function(s) {
   if (nchar(s) != 0) {
     sTokens <- tokenize(toLower(s), removePunct = TRUE, removeTwitter = TRUE, removeHyphens = TRUE)
     # UNK if not in dictionary
-    sTokens <- unname(sapply(sTokens, function(x) ifelse(x %fin% GradyAugmentedClean, x, "_UNK_")))
-    sTokens <- unname(sapply(sTokens, function(x) gsub("http[^ ]*", "_UNK_", x)))
+    sTokens <- mclapply(sTokens, function(x) ifelse(x %fin% GradyAugmentedClean, x, "_UNK_"))
+    sTokens <- mclapply(sTokens, function(x) gsub("http[^ ]*", "_UNK_", x))
     paste(sTokens, collapse = ' ')
   } else {
     s
@@ -98,12 +98,12 @@ createNgramsHashAll <- function(txt, removeSingletons = TRUE) {
 
 # Create hash of percentages for unigrams, bigrams, and trigrams
 createUnigramsPercentages <- function(h) {
-  print(paste("Calculating percentages for all unigrams"))
+  #print(paste("Calculating percentages for all unigrams"))
   hash(keys(h), values(h) / sum(values(h)))
 } 
 
 createOtherGramsPercentages <- function(key, loGramPs, hiGramPs, sentenceCount) {
-  print(paste("Calculating percentages for", key))
+  #print(paste("Calculating percentages for", key))
   loGramKey <- gsub("^(.*)_(_S_|_UNK_|[^_]+)$", "\\1", key, perl = TRUE)
   
   loGramCount <- if(grepl("^((?:_)?_S_(?:_)?)*$", loGramKey, perl = TRUE))
@@ -138,10 +138,10 @@ ngramTail <- function(ngram, count = ngramLength(ngram) - 1) {
   paste(tail(q, count), collapse = "_")
 }
 
-# ngramHead <- function(ngram, count = 1) {
-#   q <- stri_match_all_regex(ngram, "(_S_|_UNK_|[^_]+)")[[1]][,1]
-#   paste(head(q, count), collapse = "_")
-# }
+ngramHead <- function(ngram, count = 1) {
+  q <- stri_match_all_regex(ngram, "(_S_|_UNK_|[^_]+)")[[1]][,1]
+  paste(head(q, count), collapse = "_")
+}
 
 # Returns indicated token/tokens using index
 # ngramToken <- function(ngram, count = 1) {
@@ -224,7 +224,7 @@ quotemeta <- function(string) {
 
 # TODO: Consider storing the name of the subnode in the node when creating the maps to begin with?
 makeModel <- function(ngram, ngrams, subKeys, count = 1) {
-  print(paste("Processing", ngram))
+  #print(paste("Processing", ngram))
   ngramsLength = length(ngrams)
   p = ngrams[[count]][[ngram]] 
   sbMultiplier <- ngramsLength - count
@@ -242,8 +242,37 @@ makeModel <- function(ngram, ngrams, subKeys, count = 1) {
   node
 }
 
+makeModel2 <- function(ngram, ngrams, ngramsMap, count = 1) {
+  #print(paste("Processing", ngram))
+  ngramsLength = length(ngrams)
+  p = ngrams[[count]][[ngram]] 
+  sbMultiplier <- ngramsLength - count
+  if (sbMultiplier != 0)
+    p <- p * sbMultiplier * .4
+  node <- list(ngram = ngram, p = p)
+  if (count != ngramsLength) {
+    subnodes <- ngramsMap[[count]][[ngram]]
+    if (length(subnodes) != 0) {
+      node$snodeProbs <- mclapply(subnodes, 
+                                  function(subnode) list(w = ngramTail(subnode, 1),
+                                                         p = (ngrams[[count + 1]][[subnode]]))) %>>%  list.sort((p))
+    }
+  }
+  node
+}
+
 makeNgramModelWrapper <- function(ngrams, count = 1) {
-  hash(mclapply2(keys(ngrams[[count]]), function(ngram) makeModel(ngram, ngrams, keys(ngrams[[count + 1]]), count), simplify = FALSE, USE.NAMES = TRUE, mc.cores = coreCount))
+  hash(mcmapply2(function(ngram) makeModel(ngram, ngrams, keys(ngrams[[count + 1]]), count), 
+                 keys(ngrams[[count]]), 
+                 SIMPLIFY = FALSE, 
+                 mc.cores = coreCount))
+}
+
+makeNgramModelWrapper2<- function(ngrams, ngramsMap, count = 1) {
+  hash(mcmapply2(function(ngram) makeModel2(ngram, ngrams, ngramsMap, count), 
+                 keys(ngrams[[count]]), 
+                 SIMPLIFY = FALSE, 
+                 mc.cores = coreCount))
 }
 
 makeNgramModel <- function(ngrams) {
@@ -251,6 +280,31 @@ makeNgramModel <- function(ngrams) {
        bigrams = makeNgramModelWrapper(ngrams, 2),
        trigrams = makeNgramModelWrapper(ngrams, 3),
        quadgrams = ngrams$quadgrams)
+}
+
+makeNgramModel2 <- function(ngrams, ngramsMap) {
+  list(unigrams = makeNgramModelWrapper2(ngrams, ngramsMap, 1),
+       bigrams = makeNgramModelWrapper2(ngrams, ngramsMap, 2),
+       trigrams = makeNgramModelWrapper2(ngrams, ngramsMap, 3),
+       quadgrams = ngrams$quadgrams)
+}
+
+mapGrams <- function(h, ngram, ngrams, count = ngramLength(ngram)) {
+  #print(ngram)
+  pn <- ngramHead(ngram, count - 1)
+  # this has got to be single threaded or it could clobber other entries
+  snList <- h[[pn]]
+  h[[pn]] <- if (is.null(snList)) list(ngram) else c(snList, list(ngram))
+}
+
+mapGramsWrapper <- function(ngrams) {
+  x <- mcmapply(function(x) {
+    h <- hash()
+    lapply(keys(ngrams[[x]]), function(y) mapGrams(h, y, ngrams))
+    h
+  }, names(ngrams[-1]))
+  names(x) <- names(ngrams)[-length(ngrams)]
+  x
 }
 
 lookupProbs <- function(ngram, ngrams, resultsCount = 0) {
@@ -364,16 +418,14 @@ mcmapply2 <- function(FUN, ...,
                       mc.silent = FALSE, mc.cores = getOption("mc.cores", 2L),
                       mc.cleanup = TRUE, mc.progress=TRUE, mc.style=3) 
 {
-  if (!is.vector(X) || is.object(X)) X <- as.list(X)
-  
   if (mc.progress) {
     f <- fifo(tempfile(), open="w+b", blocking=T)
     p <- parallel:::mcfork()
-    pb <- txtProgressBar(0, length(X), style=mc.style)
+    pb <- txtProgressBar(0, length(...), style=mc.style)
     setTxtProgressBar(pb, 0) 
     progress <- 0
     if (inherits(p, "masterProcess")) {
-      while (progress < length(X)) {
+      while (progress < length(...)) {
         readBin(f, "double")
         progress <- progress + 1
         setTxtProgressBar(pb, progress) 
@@ -388,11 +440,11 @@ mcmapply2 <- function(FUN, ...,
       if (mc.progress) writeBin(1, f)
       res
     }, 
-    X,
+    ...,
     MoreArgs = MoreArgs, SIMPLIFY = SIMPLIFY, USE.NAMES = USE.NAMES,
     mc.preschedule = mc.preschedule, mc.set.seed = mc.set.seed,
     mc.silent = mc.silent, mc.cores = mc.cores,
-    mc.cleanup = mc.cleanup, mc.allow.recursive = mc.allow.recursive
+    mc.cleanup = mc.cleanup
     )
     
   }, finally = {
