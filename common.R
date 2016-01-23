@@ -43,8 +43,8 @@ coreCount <- detectCores() * .75
 # Takes raw input and breaks out into individual sentences
 makeSentences <- function(txt) {
   print("Making sentences")
-  mclapply2(txt, 
-            function(x) tokenize(x, what = "sentence", simplify = TRUE), mc.cores = coreCount)
+  unlist(mclapply2(txt, 
+                   function(x) tokenize(x, what = "sentence", simplify = TRUE), mc.cores = coreCount))
 }
 
 # Uses dictionary and profanity list to filter out potential token values
@@ -52,8 +52,8 @@ removeUnknownFromSentence <-  function(s) {
   if (nchar(s) != 0) {
     sTokens <- tokenize(toLower(s), removePunct = TRUE, removeTwitter = TRUE, removeHyphens = TRUE)
     # UNK if not in dictionary
-    sTokens <- mclapply(sTokens, function(x) ifelse(x %fin% GradyAugmentedClean, x, "_UNK_"))
-    sTokens <- mclapply(sTokens, function(x) gsub("http[^ ]*", "_UNK_", x))
+    sTokens <- sapply(sTokens, function(x) ifelse(x %fin% GradyAugmentedClean, x, "_UNK_"))
+    sTokens <- sapply(sTokens, function(x) gsub("http[^ ]*", "_UNK_", x))
     paste(sTokens, collapse = ' ')
   } else {
     s
@@ -75,6 +75,9 @@ grabFiles <- function() {
   
   # Download profanity list
   download.maybe("https://gist.github.com/tjrobinson/2366772/raw/97329ead3d5ab06160c3c7ac1d3bcefa4f66b164/profanity.csv")
+
+  # capstone4
+  download.maybe("https://github.com/hfoffani/dsci-benchmark/raw/master/data.zip")
 }
 
 grabFiles()
@@ -352,7 +355,7 @@ predict.baseline.raw <- function(q, models) {
   print(paste("Modified query:", q))
   
   #TODO: filter out duplicates here and order across all
-  suggestions <- lapply(models, function(model) lookupProbsWrapper(q, model))
+  suggestions <- c(lapply(models, function(model) lookupProbsWrapper(q, model)))
   print(paste("Suggestions:", paste(suggestions, collapse = ",")))
   suggestions %>>% list.mapv(w) #%>>% list.flatten(use.names = FALSE)
 }

@@ -52,7 +52,7 @@ modelDb$news <- makeNgramModel2(modelNews, mapNews)
 print("Processing geah")
 modelDb$geah <- makeNgramModel2(modelGeah, mapGeah)
 
-rm(list = ls(pattern = c("*Tweets", "*Blogs", "*News", "*Geah")))
+rm(list =  ls(pattern = "*Tweets|*Blogs|*News|*Geah"))
 
 # Perplexity calculation
 # The cross-entropy is the average of the negative logarithm of the word probabilities. 

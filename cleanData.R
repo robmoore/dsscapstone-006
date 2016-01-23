@@ -38,5 +38,7 @@ db$blogs <- removeUnknownFromText(blogs)
 db$news <- removeUnknownFromText(news)
 db$geah <- removeUnknownFromText(geah)
 
+rm(list =  ls(pattern = "tweets|blogs|news|geah"))
+
 # remove stale entries
 dbReorganize(db)
