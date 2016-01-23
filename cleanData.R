@@ -1,5 +1,5 @@
 source("common.R")
-#cleanDbName <- "mclapply-test-2.db1"
+
 if (!file.exists(cleanDbName)) {
   dbCreate(cleanDbName)
 }
@@ -9,7 +9,7 @@ dbDelete(db, "tweets")
 dbDelete(db, "blogs")
 dbDelete(db, "geah")
 
-nLinesRatio <- .1 #.6
+nLinesRatio <- .01 #.6
 nTwitterLines <- 2360148 # can use determine_nlines("final/en_US/en_US.twitter.txt")
 nBlogLines <- 899288 # can use determine_nlines("final/en_US/en_US.blogs.txt")
 #nBlogLines <- 0
@@ -18,7 +18,7 @@ nNewsLines <- 1010242 # can use determine_nlines("final/en_US/en_US.news.txt")
 #nTotalLines <- nTwitterLines + nBlogLines + nNewsLines
 
 txts <- hash()
-txtx$tweets <- sample_lines("final/en_US/en_US.twitter.txt", nTwitterLines * nLinesRatio, nTwitterLines)
+txts$tweets <- sample_lines("final/en_US/en_US.twitter.txt", nTwitterLines * nLinesRatio, nTwitterLines)
 txts$blogs <- sample_lines("final/en_US/en_US.blogs.txt", nBlogLines * nLinesRatio, nBlogLines)
 txts$news <- sample_lines("final/en_US/en_US.news.txt", nNewsLines * nLinesRatio, nNewsLines)
 txts$geah <- scan("green-eggs-and-ham.txt",
