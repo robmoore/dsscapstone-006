@@ -16,43 +16,22 @@ dbDelete(modelDb, "geah")
 
 cleanData <- as(cleanDb, "list")
 
-print(paste("Calculating percentages at", date()))
+processType <- function(typeName, removeSingletons = TRUE) {
+  dbDelete(modelDb, "typeName")
+  print(paste("Calculating percentages for", typeName, "at", date()))
+  percentages <- calculatePercentages(cleanData[[typeName]])
+  
+  print(paste("Creating maps for", typeName, "at", date()))
+  ngramMap <- mapGramsWrapper(percentages)
+  
+  print(paste("Creating model for", typeName, "at", date()))
+  modelDb[[type]] <- makeNgramModel2(percentages, ngramMap)
+}
 
-print("Processing tweets")
-modelTweets <- calculatePercentages(cleanData$tweets)
-print("Processing blogs")
-modelBlogs <- calculatePercentages(cleanData$blogs)
-print("Processing news")
-modelNews <- calculatePercentages(cleanData$news)
-print("Processing geah")
-modelGeah <- calculatePercentages(cleanData$geah, removeSingletons = FALSE)
-
-print(paste("Creating maps at", date()))
-print("Processing tweets")
-mapTweets <- mapGramsWrapper(modelTweets)
-print("Processing blogs")
-mapBlogs <- mapGramsWrapper(modelBlogs)
-print("Processing news")
-mapNews <- mapGramsWrapper(modelNews)
-print("Processing geah")
-mapGeah <- mapGramsWrapper(modelGeah)
-
-print(paste("Creating model at", date()))
-# modelDb$tweets <- makeNgramModel(modelTweets)
-# modelDb$blogs <- makeNgramModel(modelBlogs)
-# modelDb$news <- makeNgramModel(modelNews)
-# modelDb$geah <- makeNgramModel(modelGeah)
-
-print("Processing tweets")
-modelDb$tweets <- makeNgramModel2(modelTweets, mapTweets)
-print("Processing blogs")
-modelDb$blogs <- makeNgramModel2(modelBlogs, mapBlogs)
-print("Processing news")
-modelDb$news <- makeNgramModel2(modelNews, mapNews)
-print("Processing geah")
-modelDb$geah <- makeNgramModel2(modelGeah, mapGeah)
-
-rm(list =  ls(pattern = "*Tweets|*Blogs|*News|*Geah"))
+modelDb$tweets <- processType('tweets')
+modelDb$blogs <- processType('blogs')
+modelDb$news <- processType('news')
+modelDb$geah <- processType('geah', FALSE)
 
 # Perplexity calculation
 # The cross-entropy is the average of the negative logarithm of the word probabilities. 
