@@ -26,18 +26,17 @@ blogs <- sample_lines("final/en_US/en_US.blogs.txt", nBlogLines * nLinesRatio, n
 news <- sample_lines("final/en_US/en_US.news.txt", nNewsLines * nLinesRatio, nNewsLines)
 
 # Convert to list of sentences
+print(paste("Making sentences at", date()))
 tweets <- makeSentences(tweets)
 blogs <- makeSentences(blogs)
 news <- makeSentences(news)
 geah <- makeSentences(geah)
 
+print(paste("Removing unknown from test at", date()))
 db$tweets <- removeUnknownFromText(tweets)
 db$blogs <- removeUnknownFromText(blogs)
 db$news <- removeUnknownFromText(news)
 db$geah <- removeUnknownFromText(geah)
-
-# Stop cluster as we're done with it
-#stopCluster(cl)
 
 # remove stale entries
 dbReorganize(db)
