@@ -215,14 +215,13 @@ benchmark <- compiler::cmpfun(function(FUN, ..., sent.list, ext.output=T) {
 #}
 
 source("common.R")
+modelDb <- dbInit(modelDbName)
 
 predict.baseline <- function(q) {
-  if (!exists("env")) {
-    db <- dbInit(dbName)
-    env <- new.env()
-    dbLazyLoad(db, env, c('tweetsModel'))
-  }
-  predict.baseline.raw(q, env$tweetsModel)  
+  cleanData <- as(modelDb, "list")
+  
+  results <- predict.baseline.raw(q, list(modelDb$blogs, modelDB$tweets)
+  results <- c(results, predict.baseline.raw(q, ))  
 }
 
 #if (!exists("memoQueryNgramProbs"))

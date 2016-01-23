@@ -43,8 +43,8 @@ coreCount <- detectCores() * .75
 # Takes raw input and breaks out into individual sentences
 makeSentences <- function(txt) {
   print("Making sentences")
-  unname(unlist(mclapply2(txt, 
-                         function(x) tokenize(x, what = "sentence", simplify = TRUE), mc.cores = coreCount)))
+  mclapply2(txt, 
+            function(x) tokenize(x, what = "sentence", simplify = TRUE), mc.cores = coreCount)
 }
 
 # Uses dictionary and profanity list to filter out potential token values
@@ -306,7 +306,7 @@ mapGrams <- function(h, ngram, ngrams, count = ngramLength(ngram)) {
 
 mapGramsWrapper <- function(ngrams) {
   print("Creating mapGrams")
-  x <- mcmapply(function(x) {
+  x <- mcmapply2(function(x) {
     h <- hash()
     lapply(keys(ngrams[[x]]), function(y) mapGrams(h, y, ngrams))
     h
@@ -337,7 +337,7 @@ lookupProbsWrapper <- function(ngram, ngrams) {
   results %>>% list.sort(-p) %>>% list.group(w) %>>% list.map(list.first(.)) %>>% list.take(3) %>>% list.sort(-p) %>>% unname
 }
 
-predict.baseline.raw <- function(q, model) {
+predict.baseline.raw <- function(q, models) {
   print(paste0("Predicting for '", q, "'"))
   if (nchar(trimws(q)) == 0) {
     q <- paste(replicate(3, "_S_"), collapse = "_")
@@ -351,7 +351,8 @@ predict.baseline.raw <- function(q, model) {
   }
   print(paste("Modified query:", q))
   
-  suggestions <- lookupProbsWrapper(q, model)
+  #TODO: filter out duplicates here and order across all
+  suggestions <- lapply(models, function(model) lookupProbsWrapper(q, model))
   print(paste("Suggestions:", paste(suggestions, collapse = ",")))
   suggestions %>>% list.mapv(w) #%>>% list.flatten(use.names = FALSE)
 }
