@@ -38,7 +38,8 @@ download.maybe <- function(url, refetch=FALSE, path=".") {
 "%fin%" <- function(x, table) fmatch(x, table, nomatch = 0) > 0
 
 makeCluster.default <- function() makeForkCluster(detectCores() * .75, outfile = "cluster-outfile.txt")
-coreCount <- detectCores() * .75
+#coreCount <- detectCores() * .75
+coreCount <- 5
 
 # Takes raw input and breaks out into individual sentences
 makeSentences <- function(txt) {
@@ -77,7 +78,10 @@ grabFiles <- function() {
   download.maybe("https://gist.github.com/tjrobinson/2366772/raw/97329ead3d5ab06160c3c7ac1d3bcefa4f66b164/profanity.csv")
 
   # capstone4
-  download.maybe("https://github.com/hfoffani/dsci-benchmark/raw/master/data.zip")
+  #download.maybe("https://github.com/hfoffani/dsci-benchmark/raw/master/data.zip")
+  if (!file.exists("data")) { 
+    unzip("data.zip")
+  }
 }
 
 grabFiles()

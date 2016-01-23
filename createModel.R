@@ -25,13 +25,22 @@ processType <- function(typeName, removeSingletons = TRUE) {
   ngramMap <- mapGramsWrapper(percentages)
   
   print(paste("Creating model for", typeName, "at", date()))
-  modelDb[[type]] <- makeNgramModel2(percentages, ngramMap)
+  makeNgramModel2(percentages, ngramMap)
 }
 
+library(inline)
+includes <- '#include <sys/wait.h>'
+code <- 'int wstat; while (waitpid(-1, &wstat, WNOHANG) > 0) {};'
+wait <- cfunction(body=code, includes=includes, convention='.C')
+
 modelDb$tweets <- processType('tweets')
+wait()
 modelDb$blogs <- processType('blogs')
+wait()
 modelDb$news <- processType('news')
+wait()
 modelDb$geah <- processType('geah', FALSE)
+wait()
 
 # Perplexity calculation
 # The cross-entropy is the average of the negative logarithm of the word probabilities. 

@@ -8,11 +8,6 @@ rsconnect
 milestone-report_cache
 all.RData
 milestone-report_files
-en
-*.db
-corpus
-data.zip
 data
 .RDataTmp
-cluster-outfile.txt
 *.db1
