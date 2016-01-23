@@ -23,11 +23,22 @@ modelBlogs <- calculatePercentages(cleanData$blogs)
 modelNews <- calculatePercentages(cleanData$news)
 modelGeah <- calculatePercentages(cleanData$geah, removeSingletons = FALSE)
 
+print(paste("Creating maps at", date()))
+mapTweets <- mapGramsWrapper(modelTweets)
+mapBlogs <- mapGramsWrapper(modelBlogs)
+mapNews <- mapGramsWrapper(modelNews)
+mapGeah <- mapGramsWrapper(modelGeah)
+
 print(paste("Creating model at", date()))
-modelDb$tweets <- makeNgramModel(modelTweets)
-modelDb$blogs <- makeNgramModel(modelBlogs)
-modelDb$news <- makeNgramModel(modelNews)
-modelDb$geah <- makeNgramModel(modelGeah)
+# modelDb$tweets <- makeNgramModel(modelTweets)
+# modelDb$blogs <- makeNgramModel(modelBlogs)
+# modelDb$news <- makeNgramModel(modelNews)
+# modelDb$geah <- makeNgramModel(modelGeah)
+
+modelDb$tweets <- makeNgramModel2(modelTweets, mapTweets)
+modelDb$blogs <- makeNgramModel2(modelBlogs, mapBlogs)
+modelDb$news <- makeNgramModel2(modelNews, mapNews)
+modelDb$geah <- makeNgramModel2(modelGeah, mapGeah)
 
 rm(list = ls(pattern = c("*Tweets", "*Blogs", "*News", "*Geah")))
 

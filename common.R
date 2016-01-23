@@ -42,6 +42,7 @@ coreCount <- detectCores() * .75
 
 # Takes raw input and breaks out into individual sentences
 makeSentences <- function(txt) {
+  print("Making sentences")
   unname(unlist(mclapply2(txt, 
                          function(x) tokenize(x, what = "sentence", simplify = TRUE), mc.cores = coreCount)))
 }
@@ -59,7 +60,10 @@ removeUnknownFromSentence <-  function(s) {
   }
 }
 
-removeUnknownFromText <- function(txt) mclapply2(txt, removeUnknownFromSentence, mc.cores = coreCount)
+removeUnknownFromText <- function(txt) {
+  print("Removing unknown from text")
+  mclapply2(txt, removeUnknownFromSentence, mc.cores = coreCount)
+}
 
 grabFiles <- function() {
   download.maybe("http://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip")
@@ -90,6 +94,7 @@ createNgramsHash <- function(txt, count, removeSingletons = TRUE) {
 }
 
 createNgramsHashAll <- function(txt, removeSingletons = TRUE) {
+  print("Creating ngram hashes")
   mclapply2(list(unigrams = 1, bigrams = 2, trigrams = 3, quadgrams = 4), 
             function(c) createNgramsHash(txt, c, removeSingletons && c > 2), mc.cores = coreCount)
 #  sapply(list(unigrams = 1, bigrams = 2, trigrams = 3, quadgrams = 4), 
@@ -117,6 +122,7 @@ createOtherGramsPercentages <- function(key, loGramPs, hiGramPs, sentenceCount) 
 }
 
 createNgramsPercentagesAll <- function(ngramsHash, sentenceCount) {
+  print("Creating ngram percentages")
   list(unigrams = createUnigramsPercentages(ngramsHash$unigrams), 
        bigrams = hash(mcmapply2(function(key) createOtherGramsPercentages(key, 
                                                                          loGramPs = ngramsHash$unigrams, 
@@ -269,6 +275,7 @@ makeNgramModelWrapper <- function(ngrams, count = 1) {
 }
 
 makeNgramModelWrapper2<- function(ngrams, ngramsMap, count = 1) {
+  print("Creating ngram model")
   hash(mcmapply2(function(ngram) makeModel2(ngram, ngrams, ngramsMap, count), 
                  keys(ngrams[[count]]), 
                  SIMPLIFY = FALSE, 
@@ -298,6 +305,7 @@ mapGrams <- function(h, ngram, ngrams, count = ngramLength(ngram)) {
 }
 
 mapGramsWrapper <- function(ngrams) {
+  print("Creating mapGrams")
   x <- mcmapply(function(x) {
     h <- hash()
     lapply(keys(ngrams[[x]]), function(y) mapGrams(h, y, ngrams))
