@@ -11,3 +11,4 @@ milestone-report_files
 data
 .RDataTmp
 *.db1
+*.db1___LOCK

@@ -4,7 +4,7 @@ cleanDb <- dbInit(cleanDbName)
 cleanData <- as(cleanDb, "list")
 
 processType <- function(typeName, removeSingletons = TRUE) {
-  modelDbName <- paste0(typeName, "-model.db1")
+  modelDbName <- modelName(typeName)
   if (!file.exists(modelDbName)) {
     dbCreate(modelDbName)
   }

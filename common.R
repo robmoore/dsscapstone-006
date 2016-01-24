@@ -23,9 +23,13 @@ excluded <- scan("profanity.csv",
 GradyAugmentedClean <- setdiff(GradyAugmented, excluded)
 rm(excluded)
 
-dbName <- "corpus.db1"
+#dbName <- "corpus.db1"
 cleanDbName <- "cleaned.db1"
-modelDbName <- "model.db1"
+#modelDbName <- "model.db1"
+
+modelName <- function(typeName) {
+  modelDbName <- paste0(typeName, "-model.db1")
+}
 
 download.maybe <- function(url, refetch=FALSE, path=".") {
   dest <- file.path(path, basename(url))
@@ -341,27 +345,43 @@ lookupProbsWrapper <- function(ngram, ngrams) {
   #str(ngram)
   results <- lookupProbs(ngram, ngrams)
   #str(results)
-  results %>>% list.sort(-p) %>>% list.group(w) %>>% list.map(list.first(.)) %>>% list.take(3) %>>% list.sort(-p) %>>% unname
+  results
+}
+
+massageResults <- function(results) {
+  # if _S_ then .?
+  # if _UNK_ remove
+  # remove duplicates
+  # if I then capitalize? how about names?
+  #print(results)
+  if (length(results) != 0)
+    results %>>% list.filter(w != "_UNK_" && w != '_S_') %>>% list.sort(-p) %>>% 
+      list.group(w) %>>% list.map(list.first(.)) %>>% 
+      list.take(3) %>>% list.sort((p)) %>>% unname
+  else
+    results
 }
 
 predict.baseline.raw <- function(q, models) {
   print(paste0("Predicting for '", q, "'"))
   if (nchar(trimws(q)) == 0) {
-    q <- paste(replicate(3, "_S_"), collapse = "_")
+    #q <- paste(replicate(3, "_S_"), collapse = "_")
+    suggestions <- list()
   } else {
     q <- removeUnknownFromSentence(q)
     q <- cleanQuery(q, 3)
     # Fill out query to 3 tokens if less
     tokenCount <- stri_count_regex(q, "([^_]+)")
-    if (tokenCount < 3)
-      q <- paste0(paste0(replicate(3 - tokenCount, "_S_"), collapse = "_"), "_", q)
+    if (tokenCount < 3) q <- paste0(paste0(replicate(3 - tokenCount, "_S_"), collapse = "_"), "_", q)
+    print(paste("Modified query:", q))
+    suggestions <- massageResults(lapply(models, function(model) lookupProbs(q, model)) %>>% list.ungroup)
+    print(paste("Suggestions:", paste(suggestions, collapse = ",")))
   }
-  print(paste("Modified query:", q))
   
-  #TODO: filter out duplicates here and order across all
-  suggestions <- c(lapply(models, function(model) lookupProbsWrapper(q, model)))
-  print(paste("Suggestions:", paste(suggestions, collapse = ",")))
-  suggestions %>>% list.mapv(w) #%>>% list.flatten(use.names = FALSE)
+  if (length(suggestions) != 0) 
+    suggestions %>>% list.mapv(w)
+  else
+    list()
 }
 
 ##------------------------------------------------------------------------------
