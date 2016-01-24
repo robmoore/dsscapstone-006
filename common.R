@@ -9,6 +9,7 @@ library(rlist)
 library(hash)
 library(stringi)
 library(stringr)
+library(memoise)
 # look at stashR for remote repo
 
 # For reproducibility's sake
@@ -41,9 +42,7 @@ download.maybe <- function(url, refetch=FALSE, path=".") {
 # Faster lookups on vectors
 "%fin%" <- function(x, table) fmatch(x, table, nomatch = 0) > 0
 
-makeCluster.default <- function() makeForkCluster(detectCores() * .75, outfile = "cluster-outfile.txt")
-#coreCount <- detectCores() * .75
-coreCount <- 5
+coreCount <- detectCores() * .75
 
 # Takes raw input and breaks out into individual sentences
 makeSentences <- function(txt) {
@@ -93,18 +92,18 @@ grabFiles()
 #---
 
 # TODO: Do we really need the parSapply or even sapply below? it must not be a list or the tokennize call wouldn't work, right?
-createNgramsHash <- function(txt, count, removeSingletons = TRUE) {
+createNgramsHash <- function(txt, count, singletonsThreshold = 2, removeSingletons = TRUE) {
   if (count > 1)
     #txt <- parSapply(cl, txt, function(x) paste(paste(rep("_S_", count - 1), collapse = " "), x, paste(rep("_S_", count - 1), collapse = " ")))
     txt <- mclapply(txt, function(x) paste(paste(rep("_S_", count - 1), collapse = " "), x, paste(rep("_S_", count - 1), collapse = " ")), mc.cores = coreCount)
 
   t <- table(tokenize(unlist(txt), ngrams = count, simplify = TRUE))
   # filter out singletons for count > 2
-  if (count > 2 && removeSingletons) t <- t[t > 1]
+  if (singletonsThreshold > 2 && removeSingletons) t <- t[t > 1]
   hash(t)
 }
 
-createNgramsHashAll <- function(txt, removeSingletons = TRUE) {
+createNgramsHashAll <- function(txt, singletonsThreshold = 2, removeSingletons = TRUE) {
   print("Creating ngram hashes")
   mclapply2(list(unigrams = 1, bigrams = 2, trigrams = 3, quadgrams = 4), 
             function(c) createNgramsHash(txt, c, removeSingletons && c > 2), mc.cores = coreCount)
@@ -296,15 +295,15 @@ makeNgramModelWrapper2<- function(ngrams, ngramsMap, count = 1) {
 makeNgramModel <- function(ngrams) {
   list(unigrams = makeNgramModelWrapper(ngrams, 1),
        bigrams = makeNgramModelWrapper(ngrams, 2),
-       trigrams = makeNgramModelWrapper(ngrams, 3),
-       quadgrams = ngrams$quadgrams)
+       trigrams = makeNgramModelWrapper(ngrams, 3))#,
+       #quadgrams = ngrams$quadgrams)
 }
 
 makeNgramModel2 <- function(ngrams, ngramsMap) {
   list(unigrams = makeNgramModelWrapper2(ngrams, ngramsMap, 1),
        bigrams = makeNgramModelWrapper2(ngrams, ngramsMap, 2),
-       trigrams = makeNgramModelWrapper2(ngrams, ngramsMap, 3),
-       quadgrams = ngrams$quadgrams)
+       trigrams = makeNgramModelWrapper2(ngrams, ngramsMap, 3))#,
+       #quadgrams = ngrams$quadgrams)
 }
 
 mapGrams <- function(h, ngram, ngrams, count = ngramLength(ngram)) {
@@ -341,23 +340,13 @@ lookupProbs <- function(ngram, ngrams, resultsCount = 0) {
   results
 }
 
-lookupProbsWrapper <- function(ngram, ngrams) {
-  #str(ngram)
-  results <- lookupProbs(ngram, ngrams)
-  #str(results)
-  results
-}
-
 massageResults <- function(results) {
-  # if _S_ then .?
-  # if _UNK_ remove
-  # remove duplicates
   # if I then capitalize? how about names?
   #print(results)
   if (length(results) != 0)
-    results %>>% list.filter(w != "_UNK_" && w != '_S_') %>>% list.sort(-p) %>>% 
-      list.group(w) %>>% list.map(list.first(.)) %>>% 
-      list.take(3) %>>% list.sort((p)) %>>% unname
+    # list.map(if (w == '_S_') list(w='.', p = p) else .) 
+    results %>>% list.filter(w != "_UNK_" && w != "_S_") %>>% list.sort((p)) %>>% list.group(w) %>>% 
+      list.map(list.first(.)) %>>% list.take(3) %>>% list.sort((p)) %>>% unname
   else
     results
 }
@@ -374,7 +363,7 @@ predict.baseline.raw <- function(q, models) {
     tokenCount <- stri_count_regex(q, "([^_]+)")
     if (tokenCount < 3) q <- paste0(paste0(replicate(3 - tokenCount, "_S_"), collapse = "_"), "_", q)
     print(paste("Modified query:", q))
-    suggestions <- massageResults(lapply(models, function(model) lookupProbs(q, model)) %>>% list.ungroup)
+    suggestions <- massageResults(mclapply(models, function(model) lookupProbs(q, model), mc.cores = coreCount) %>>% list.ungroup)
     print(paste("Suggestions:", paste(suggestions, collapse = ",")))
   }
   

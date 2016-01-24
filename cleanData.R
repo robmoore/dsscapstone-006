@@ -9,7 +9,7 @@ dbDelete(db, "tweets")
 dbDelete(db, "blogs")
 dbDelete(db, "geah")
 
-nLinesRatio <- .01 #.6
+nLinesRatio <- .1 #.6
 nTwitterLines <- 2360148 # can use determine_nlines("final/en_US/en_US.twitter.txt")
 nBlogLines <- 899288 # can use determine_nlines("final/en_US/en_US.blogs.txt")
 #nBlogLines <- 0
@@ -20,7 +20,7 @@ nNewsLines <- 1010242 # can use determine_nlines("final/en_US/en_US.news.txt")
 txts <- hash()
 txts$tweets <- sample_lines("final/en_US/en_US.twitter.txt", nTwitterLines * nLinesRatio, nTwitterLines)
 txts$blogs <- sample_lines("final/en_US/en_US.blogs.txt", nBlogLines * nLinesRatio, nBlogLines)
-txts$news <- sample_lines("final/en_US/en_US.news.txt", nNewsLines * nLinesRatio, nNewsLines)
+#txts$news <- sample_lines("final/en_US/en_US.news.txt", nNewsLines * nLinesRatio, nNewsLines)
 txts$geah <- scan("green-eggs-and-ham.txt",
              sep = "\n", 
              what = character())
@@ -35,7 +35,7 @@ processType <- function(typeName) {
 
 db$tweets <- processType('tweets')
 db$blogs <- processType('blogs')
-db$news <- processType('news')
+#db$news <- processType('news')
 db$geah <- processType('geah')
 
 rm(list =  ls(pattern = "txts"))

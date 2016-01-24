@@ -24,7 +24,7 @@ processType <- function(typeName, removeSingletons = TRUE) {
 
 processType('tweets')
 processType('blogs')
-processType('news')
+#processType('news')
 processType('geah', FALSE)
 
 # Perplexity calculation
