@@ -101,14 +101,14 @@ benchmark <- compiler::cmpfun(function(FUN, ..., sent.list, ext.output=T) {
                                    split <- split.sentence(sent[1])
                                    max.score <- max.score + ncol(split)*3
                                    total.count <- total.count + ncol(split)
-#                                    rank <- mcmapply(function(i) {
-#                                                       min(which(FUN(split[1,i], ...)==split[2,i]),4)
-#                                                     }, seq_len(ncol(split)), SIMPLIFY = TRUE, mc.cores = coreCount)
-                                   rank <-
-                                     sapply(seq_len(ncol(split)),
-                                            function(i) {
-                                              min(which(FUN(split[1,i], ...) == split[2,i]),4)
-                                            })
+                                   rank <- mcmapply(function(i) {
+                                                      min(which(FUN(split[1,i], ...)==split[2,i]),4)
+                                                    }, seq_len(ncol(split)), SIMPLIFY = TRUE, mc.cores = coreCount)
+#                                    rank <-
+#                                      sapply(seq_len(ncol(split)),
+#                                             function(i) {
+#                                               min(which(FUN(split[1,i], ...) == split[2,i]),4)
+#                                             })
                                    print(rank)
                                    score <- score + sum(4-rank)
                                    hit.count.top3 <- hit.count.top3 + sum(rank<4)
@@ -217,13 +217,13 @@ benchmark <- compiler::cmpfun(function(FUN, ..., sent.list, ext.output=T) {
 
 source("common.R")
 tweetsModelDb <- dbInit(modelName('tweets'))
-blogsModelDb <- dbInit(modelName('blogs'))
-#cleanData <- as(modelDb, "list")
+#blogsModelDb <- dbInit(modelName('blogs'))
+tweetsModelEnv <- as(tweetsModelDb, "list")
 
 predict.baseline.pre <- function(q) {
-  tweetsModel <- tweetsModelDb$model
-  blogsModel <- blogsModelDb$model
-  results <- predict.baseline.raw(q, list(blogsModel, tweetsModel))
+  #tweetsModel <- tweetsModelDb$model
+  #blogsModel <- blogsModelDb$model
+  results <- predict.baseline.raw(q, list(tweetsModelEnv$model)) #blogsModel, 
 }
 if (!exists('predict.baseline'))
   predict.baseline <- memoise(predict.baseline.pre)

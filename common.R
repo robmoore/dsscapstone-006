@@ -92,21 +92,21 @@ grabFiles()
 #---
 
 # TODO: Do we really need the parSapply or even sapply below? it must not be a list or the tokennize call wouldn't work, right?
-createNgramsHash <- function(txt, count, singletonsThreshold = 2, removeSingletons = TRUE) {
+createNgramsHash <- function(txt, count, singletonsThreshold = 3, removeSingletons = TRUE) {
   if (count > 1)
     #txt <- parSapply(cl, txt, function(x) paste(paste(rep("_S_", count - 1), collapse = " "), x, paste(rep("_S_", count - 1), collapse = " ")))
     txt <- mclapply(txt, function(x) paste(paste(rep("_S_", count - 1), collapse = " "), x, paste(rep("_S_", count - 1), collapse = " ")), mc.cores = coreCount)
 
   t <- table(tokenize(unlist(txt), ngrams = count, simplify = TRUE))
   # filter out singletons for count > 2
-  if (singletonsThreshold > 2 && removeSingletons) t <- t[t > 1]
+  if (count >= singletonsThreshold && removeSingletons) t <- t[t > 1]
   hash(t)
 }
 
-createNgramsHashAll <- function(txt, singletonsThreshold = 2, removeSingletons = TRUE) {
+createNgramsHashAll <- function(txt, singletonsThreshold = 3, removeSingletons = TRUE) {
   print("Creating ngram hashes")
   mclapply2(list(unigrams = 1, bigrams = 2, trigrams = 3, quadgrams = 4), 
-            function(c) createNgramsHash(txt, c, removeSingletons && c > 2), mc.cores = coreCount)
+            function(c) createNgramsHash(txt, c, singletonsThreshold, removeSingletons), mc.cores = coreCount)
 #  sapply(list(unigrams = 1, bigrams = 2, trigrams = 3, quadgrams = 4), 
 #            function(c) createNgramsHash(txt, c, removeSingletons && c > 2))
 }
@@ -231,8 +231,8 @@ cleanQuery <- function(query, maxCount) {
 }
 
 # Create percentages (frequency-based)
-calculatePercentages <- function(txtV, removeSingletons = TRUE) 
-  createNgramsPercentagesAll(createNgramsHashAll(txtV, removeSingletons), length(txtV))
+calculatePercentages <- function(txtV, singletonsThreshold = 3, removeSingletons = TRUE) 
+  createNgramsPercentagesAll(createNgramsHashAll(txtV, singletonsThreshold, removeSingletons), length(txtV))
 
 quotemeta <- function(string) {
   str_replace_all(string, "(\\W)", "\\\\\\1")
@@ -345,8 +345,8 @@ massageResults <- function(results) {
   #print(results)
   if (length(results) != 0)
     # list.map(if (w == '_S_') list(w='.', p = p) else .) 
-    results %>>% list.filter(w != "_UNK_" && w != "_S_") %>>% list.sort((p)) %>>% list.group(w) %>>% 
-      list.map(list.first(.)) %>>% list.take(3) %>>% list.sort((p)) %>>% unname
+    results %>>% list.filter(w != "_UNK_" && w != "_S_") %>>% list.map(if (w == 'i') list(w='I', p = p) else .) %>>% 
+    list.sort((p)) %>>% list.group(w) %>>% list.map(list.first(.)) %>>% list.take(3) %>>% list.sort((p)) %>>% unname
   else
     results
 }

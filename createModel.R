@@ -11,7 +11,7 @@ processType <- function(typeName, removeSingletons = TRUE) {
   modelDb <- dbInit(modelDbName)
   
   print(paste("Calculating percentages for", typeName, "at", date()))
-  percentages <- calculatePercentages(cleanData[[typeName]])
+  percentages <- calculatePercentages(cleanData[[typeName]], singletonsThreshold = 1)
   
   print(paste("Creating maps for", typeName, "at", date()))
   ngramMap <- mapGramsWrapper(percentages)
@@ -24,7 +24,7 @@ processType <- function(typeName, removeSingletons = TRUE) {
 
 processType('tweets')
 processType('blogs')
-#processType('news')
+processType('news')
 processType('geah', FALSE)
 
 # Perplexity calculation
